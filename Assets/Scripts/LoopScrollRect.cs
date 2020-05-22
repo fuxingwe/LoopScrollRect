@@ -524,6 +524,7 @@ namespace UnityEngine.UI
 
         protected float NewItemAtStart()
         {
+            //Debug.Log("===NewItemAtStart===" + Time.frameCount);
             if (totalCount >= 0 && itemTypeStart - contentConstraintCount < 0)
             {
                 return 0;
@@ -536,7 +537,7 @@ namespace UnityEngine.UI
                 newItem.SetAsFirstSibling();
                 size = Mathf.Max(GetSize(newItem), size);
             }
-            threshold = Mathf.Max(threshold, size * 1.5f);
+            threshold = Mathf.Max(threshold, size);
 
             if (!reverseDirection)
             {
@@ -551,8 +552,9 @@ namespace UnityEngine.UI
 
         protected float DeleteItemAtStart()
         {
+            //Debug.Log("===DeleteItemAtStart===" + Time.frameCount);
             // special case: when moving or dragging, we cannot simply delete start when we've reached the end
-            if (((m_Dragging || m_Velocity != Vector2.zero) && totalCount >= 0 && itemTypeEnd >= totalCount - 1) 
+            if (((m_Dragging || !m_Velocity.AlmostZero()) && totalCount >= 0 && itemTypeEnd >= totalCount - 1)
                 || content.childCount == 0)
             {
                 return 0;
@@ -586,6 +588,7 @@ namespace UnityEngine.UI
 
         protected float NewItemAtEnd()
         {
+            //Debug.Log("===NewItemAtEnd===" + Time.frameCount);
             if (totalCount >= 0 && itemTypeEnd >= totalCount)
             {
                 return 0;
@@ -603,7 +606,7 @@ namespace UnityEngine.UI
                     break;
                 }
             }
-            threshold = Mathf.Max(threshold, size * 1.5f);
+            threshold = Mathf.Max(threshold, size);
 
             if (reverseDirection)
             {
@@ -865,7 +868,8 @@ namespace UnityEngine.UI
             UpdateBounds();
             float deltaTime = Time.unscaledDeltaTime;
             Vector2 offset = CalculateOffset(Vector2.zero);
-            if (!m_Dragging && (offset != Vector2.zero || m_Velocity != Vector2.zero))
+            //AlmostZero 解决滑动停下来后还一直在微微刷新的问题
+            if (!m_Dragging && (!offset.AlmostZero() || !m_Velocity.AlmostZero()))
             {
                 Vector2 position = m_Content.anchoredPosition;
                 for (int axis = 0; axis < 2; axis++)
@@ -892,7 +896,7 @@ namespace UnityEngine.UI
                     }
                 }
 
-                if (m_Velocity != Vector2.zero)
+                if (!m_Velocity.AlmostZero())
                 {
                     if (m_MovementType == MovementType.Clamped)
                     {
@@ -1371,5 +1375,16 @@ namespace UnityEngine.UI
             SetDirtyCaching();
         }
 #endif
+    }
+
+    public static class UnityVectorExtensions
+    {
+        /// <summary>Is the vector within 0.01 length?</summary>
+        /// <param name="v"></param>
+        /// <returns>True if the square magnitude of the vector is within 0.01</returns>
+        public static bool AlmostZero(this Vector2 v)
+        {
+            return v.sqrMagnitude < 0.01;
+        }
     }
 }
