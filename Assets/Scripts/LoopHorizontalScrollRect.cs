@@ -43,58 +43,72 @@ namespace UnityEngine.UI
             }
         }
 
-        protected override bool UpdateItems(Bounds viewBounds, Bounds contentBounds)
+        protected override bool UpdateItems(Bounds viewBounds, Bounds contentBounds, bool bForwardAxis)
         {
             bool changed = false;
-
-            if (viewBounds.max.x > contentBounds.max.x)
+            bool bDeleted = false;//删除过的话，不需要判断增加了，删除会判断是否直接把删除的作为另一端增加
+            //Debug.Log(bForwardAxis + "============" + velocity.ToString());
+            //根据运动方向进行处理，可以把删除的移到另一端（DeleteItemAtEnd里面处理），并且避免触发另一端的删除
+            if (bForwardAxis)
             {
-                float size = NewItemAtEnd(), totalSize = size;
-                while (size > 0 && viewBounds.max.x > contentBounds.max.x + totalSize)
+                bDeleted = false;
+                if (viewBounds.max.x < contentBounds.max.x - threshold)
                 {
-                    size = NewItemAtEnd();
-                    totalSize += size;
+                    float size = DeleteItemAtEnd(), totalSize = size;
+                    while (size > 0 && viewBounds.max.x < contentBounds.max.x - threshold - totalSize)
+                    {
+                        size = DeleteItemAtEnd();
+                        totalSize += size;
+                    }
+                    if (totalSize > 0)
+                    {
+                        changed = true;
+                        bDeleted = true;
+                    }
                 }
-                if (totalSize > 0)
-                    changed = true;
-            }
 
-            if (viewBounds.min.x < contentBounds.min.x)
+                if (!bDeleted && viewBounds.min.x < contentBounds.min.x)
+                {
+                    float size = NewItemAtStart(), totalSize = size;
+                    while (size > 0 && viewBounds.min.x < contentBounds.min.x - totalSize)
+                    {
+                        size = NewItemAtStart();
+                        totalSize += size;
+                    }
+                    if (totalSize > 0)
+                        changed = true;
+                }
+            }
+            else
             {
-                float size = NewItemAtStart(), totalSize = size;
-                while (size > 0 && viewBounds.min.x < contentBounds.min.x - totalSize)
+                bDeleted = false;
+                if (viewBounds.min.x > contentBounds.min.x + threshold)
                 {
-                    size = NewItemAtStart();
-                    totalSize += size;
+                    float size = DeleteItemAtStart(), totalSize = size;
+                    while (size > 0 && viewBounds.min.x > contentBounds.min.x + threshold + totalSize)
+                    {
+                        size = DeleteItemAtStart();
+                        totalSize += size;
+                    }
+                    if (totalSize > 0)
+                    {
+                        changed = true;
+                        bDeleted = true;
+                    }
                 }
-                if (totalSize > 0)
-                    changed = true;
-            }
 
-            if (viewBounds.max.x < contentBounds.max.x - threshold)
-            {
-                float size = DeleteItemAtEnd(), totalSize = size;
-                while (size > 0 && viewBounds.max.x < contentBounds.max.x - threshold - totalSize)
+                if (!bDeleted && viewBounds.max.x > contentBounds.max.x)
                 {
-                    size = DeleteItemAtEnd();
-                    totalSize += size;
+                    float size = NewItemAtEnd(), totalSize = size;
+                    while (size > 0 && viewBounds.max.x > contentBounds.max.x + totalSize)
+                    {
+                        size = NewItemAtEnd();
+                        totalSize += size;
+                    }
+                    if (totalSize > 0)
+                        changed = true;
                 }
-                if (totalSize > 0)
-                    changed = true;
             }
-
-            if (viewBounds.min.x > contentBounds.min.x + threshold)
-            {
-                float size = DeleteItemAtStart(), totalSize = size;
-                while (size > 0 && viewBounds.min.x > contentBounds.min.x + threshold + totalSize)
-                {
-                    size = DeleteItemAtStart();
-                    totalSize += size;
-                }
-                if (totalSize > 0)
-                    changed = true;
-            }
-
             return changed;
         }
     }

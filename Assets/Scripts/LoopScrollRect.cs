@@ -128,7 +128,7 @@ namespace UnityEngine.UI
             }
         }
 
-        protected virtual bool UpdateItems(Bounds viewBounds, Bounds contentBounds) { return false; }
+        protected virtual bool UpdateItems(Bounds viewBounds, Bounds contentBounds, bool bForwardAxis) { return false; }
         //==========LoopScrollRect==========
 
         public enum MovementType
@@ -563,9 +563,9 @@ namespace UnityEngine.UI
             float size = 0;
             for (int i = 0; i < contentConstraintCount; i++)
             {
-                RectTransform oldItem = content.GetChild(0) as RectTransform;
+                RectTransform oldItem = content.GetChild(i) as RectTransform;
                 size = Mathf.Max(GetSize(oldItem), size);
-                prefabSource.ReturnObject(oldItem);
+                prefabSource.CacheObject(oldItem);
 
                 itemTypeStart++;
 
@@ -582,6 +582,9 @@ namespace UnityEngine.UI
                 m_PrevPosition -= offset;
                 m_ContentStartPosition -= offset;
             }
+            if (size > 0)
+                NewItemAtEnd();
+            prefabSource.ClearCache();
             return size;
         }
 
@@ -599,6 +602,7 @@ namespace UnityEngine.UI
             for (int i = 0; i < count; i++)
             {
                 RectTransform newItem = InstantiateNextItem(itemTypeEnd);
+                newItem.SetAsLastSibling();
                 size = Mathf.Max(GetSize(newItem), size);
                 itemTypeEnd++;
                 if (totalCount >= 0 && itemTypeEnd >= totalCount)
@@ -621,7 +625,8 @@ namespace UnityEngine.UI
 
         protected float DeleteItemAtEnd()
         {
-            if (((m_Dragging || m_Velocity != Vector2.zero) && totalCount >= 0 && itemTypeStart < contentConstraintCount) 
+            //Debug.Log("===DeleteItemAtEnd===" + Time.frameCount);
+            if (((m_Dragging || !m_Velocity.AlmostZero()) && totalCount >= 0 && itemTypeStart < contentConstraintCount) 
                 || content.childCount == 0)
             {
                 return 0;
@@ -630,9 +635,9 @@ namespace UnityEngine.UI
             float size = 0;
             for (int i = 0; i < contentConstraintCount; i++)
             {
-                RectTransform oldItem = content.GetChild(content.childCount - 1) as RectTransform;
+                RectTransform oldItem = content.GetChild(content.childCount -i- 1) as RectTransform;
                 size = Mathf.Max(GetSize(oldItem), size);
-                prefabSource.ReturnObject(oldItem);
+                prefabSource.CacheObject(oldItem);
 
                 itemTypeEnd--;
                 if (itemTypeEnd % contentConstraintCount == 0 || content.childCount == 0)
@@ -648,19 +653,21 @@ namespace UnityEngine.UI
                 m_PrevPosition += offset;
                 m_ContentStartPosition += offset;
             }
+            if(size>0)
+                NewItemAtStart();
+            prefabSource.ClearCache();
             return size;
         }
 
         private RectTransform InstantiateNextItem(int itemIdx)
         {            
-            RectTransform nextItem = prefabSource.GetObject().transform as RectTransform;
-            nextItem.transform.SetParent(content, false);
-            nextItem.gameObject.SetActive(true);
+            RectTransform nextItem = prefabSource.GetObject(content).transform as RectTransform;
+            //nextItem.transform.SetParent(content, false);
+            //nextItem.gameObject.SetActive(true);
             dataSource.ProvideData(nextItem, itemIdx);
             return nextItem;
         }
         //==========LoopScrollRect==========
-
         public virtual void Rebuild(CanvasUpdate executing)
         {
             if (executing == CanvasUpdate.Prelayout)
@@ -853,8 +860,17 @@ namespace UnityEngine.UI
 
             if (position != m_Content.anchoredPosition)
             {
+                bool bForwardAxis = false;
+                if (directionSign == 1)
+                {
+                    bForwardAxis = m_Content.anchoredPosition.x < position.x;
+                }
+                else if (directionSign == -1)
+                {
+                    bForwardAxis = m_Content.anchoredPosition.y < position.y;
+                }
                 m_Content.anchoredPosition = position;
-                UpdateBounds(true);
+                UpdateBounds(true, bForwardAxis);
             }
         }
 
@@ -1066,10 +1082,11 @@ namespace UnityEngine.UI
 
             if (Mathf.Abs(localPosition[axis] - newLocalPosition) > 0.01f)
             {
+                bool bForwardAxis = localPosition[axis] < newLocalPosition;
                 localPosition[axis] = newLocalPosition;
                 m_Content.localPosition = localPosition;
                 m_Velocity[axis] = 0;
-                UpdateBounds(true);
+                UpdateBounds(true, bForwardAxis);
             }
         }
 
@@ -1218,7 +1235,7 @@ namespace UnityEngine.UI
             }
         }
 
-        private void UpdateBounds(bool updateItems = false)
+        private void UpdateBounds(bool updateItems = false , bool bForwardAxis = false)
         {
             m_ViewBounds = new Bounds(viewRect.rect.center, viewRect.rect.size);
             m_ContentBounds = GetBounds();
@@ -1228,7 +1245,7 @@ namespace UnityEngine.UI
 
             // ============LoopScrollRect============
             // Don't do this in Rebuild
-            if (Application.isPlaying && updateItems && UpdateItems(m_ViewBounds, m_ContentBounds))
+            if (Application.isPlaying && updateItems && UpdateItems(m_ViewBounds, m_ContentBounds, bForwardAxis))
             {
                 Canvas.ForceUpdateCanvases();
                 m_ContentBounds = GetBounds();
