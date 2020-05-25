@@ -29,6 +29,7 @@ namespace SG
     class Pool
     {
         private Stack<PoolObject> availableObjStack = new Stack<PoolObject>();
+        private int index = 1;
 
         //the root obj for unused obj
         private GameObject rootObj;
@@ -68,8 +69,9 @@ namespace SG
         private void AddObjectToPool(PoolObject po)
         {
             //add to pool
-            po.gameObject.SetActive(false);
-            po.gameObject.name = poolName;
+            //po.gameObject.SetActive(false);
+            po.gameObject.name = poolName+ index;
+            index++;
             availableObjStack.Push(po);
             po.isPooled = true;
             //add to a root obj
@@ -106,7 +108,7 @@ namespace SG
                     increaseSize = availableObjStack.Count + Mathf.Max(objectsInUse, 0);
                 }
 #if UNITY_EDITOR
-                Debug.Log(string.Format("Growing pool {0}: {1} populated", poolName, increaseSize));
+                //Debug.Log(string.Format("Growing pool {0}: {1} populated", poolName, increaseSize));
 #endif
                 if (increaseSize > 0)
                 {
@@ -121,10 +123,10 @@ namespace SG
                 objectsInUse++;
                 po.isPooled = false;
                 result = po.gameObject;
-                if (autoActive)
-                {
-                    result.SetActive(true);
-                }
+                //if (autoActive)
+                //{
+                //    result.SetActive(true);
+                //}
             }
 
             return result;

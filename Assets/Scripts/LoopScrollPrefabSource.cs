@@ -28,7 +28,7 @@ namespace UnityEngine.UI
             GameObject go = SG.ResourceManager.Instance.GetObjectFromPool(prefabName);
             //Debug.Log(go.GetInstanceID() + "---GetObject---" + frameCacheStack.Count.ToString());
             go.transform.SetParent(content, false);
-            go.SetActive(true);
+            //go.SetActive(true);
             return go;
         }
 
