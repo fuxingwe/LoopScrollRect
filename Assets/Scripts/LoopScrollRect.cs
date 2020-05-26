@@ -444,7 +444,7 @@ namespace UnityEngine.UI
 
             for (int i = m_Content.childCount - 1; i >= 0; i--)
             {
-                prefabSource.ReturnObject(m_Content.GetChild(i));
+                prefabSource.CacheObject(m_Content.GetChild(i));
             }
 
             float sizeToFill = 0, sizeFilled = 0;
@@ -459,7 +459,7 @@ namespace UnityEngine.UI
                 if(size <= 0) break;
                 sizeFilled += size;
             }
-
+            prefabSource.ClearCache();
             Vector2 pos = m_Content.anchoredPosition;
             float dist = Mathf.Max(0, sizeFilled - sizeToFill);
             if (reverseDirection)
@@ -486,7 +486,7 @@ namespace UnityEngine.UI
             // Don't `Canvas.ForceUpdateCanvases();` here, or it will new/delete cells to change itemTypeStart/End
             for (int i = m_Content.childCount - 1; i >= 0; i--)
             {
-                prefabSource.ReturnObject(m_Content.GetChild(i));
+                prefabSource.CacheObject(m_Content.GetChild(i));
             }
 
             float sizeToFill = 0, sizeFilled = 0;
@@ -505,7 +505,7 @@ namespace UnityEngine.UI
                 else itemSize = size;
                 sizeFilled += size;
             }
-
+            prefabSource.ClearCache();
             if (fillViewRect && itemSize > 0 && sizeFilled < sizeToFill)
             {
                 int itemsToAddCount = (int)((sizeToFill - sizeFilled) / itemSize);        //calculate how many items can be added above the offset, so it still is visible in the view
@@ -550,12 +550,17 @@ namespace UnityEngine.UI
             return size;
         }
 
+        private int GetContentCountWithoutCache()
+        {
+            return content.childCount - prefabSource.GetCacheCount();
+        }
+
         protected float DeleteItemAtStart()
         {
             //Debug.Log("===DeleteItemAtStart===" + Time.frameCount);
             // special case: when moving or dragging, we cannot simply delete start when we've reached the end
-            if (((m_Dragging || !m_Velocity.AlmostZero()) && totalCount >= 0 && itemTypeEnd >= totalCount - 1)
-                || content.childCount == 0)
+            if (((m_Dragging || !m_Velocity.AlmostZero()) && totalCount >= 0 && itemTypeEnd >= totalCount)
+                || GetContentCountWithoutCache() == 0)
             {
                 return 0;
             }
@@ -569,7 +574,7 @@ namespace UnityEngine.UI
 
                 itemTypeStart++;
 
-                if (content.childCount == 0)
+                if (GetContentCountWithoutCache() == 0)
                 {
                     break;
                 }
@@ -591,14 +596,14 @@ namespace UnityEngine.UI
 
         protected float NewItemAtEnd()
         {
-            //Debug.Log("===NewItemAtEnd===" + Time.frameCount);
+            Debug.Log("===NewItemAtEnd===" + Time.frameCount+"  "+ itemTypeEnd+"  "+ totalCount);
             if (totalCount >= 0 && itemTypeEnd >= totalCount)
             {
                 return 0;
             }
             float size = 0;
             // issue 4: fill lines to end first
-            int count = contentConstraintCount - (content.childCount % contentConstraintCount);
+            int count = contentConstraintCount - (GetContentCountWithoutCache() % contentConstraintCount);
             for (int i = 0; i < count; i++)
             {
                 RectTransform newItem = InstantiateNextItem(itemTypeEnd);
@@ -627,7 +632,7 @@ namespace UnityEngine.UI
         {
             //Debug.Log("===DeleteItemAtEnd===" + Time.frameCount);
             if (((m_Dragging || !m_Velocity.AlmostZero()) && totalCount >= 0 && itemTypeStart < contentConstraintCount) 
-                || content.childCount == 0)
+                || GetContentCountWithoutCache() == 0)
             {
                 return 0;
             }
@@ -640,7 +645,7 @@ namespace UnityEngine.UI
                 prefabSource.CacheObject(oldItem);
 
                 itemTypeEnd--;
-                if (itemTypeEnd % contentConstraintCount == 0 || content.childCount == 0)
+                if (itemTypeEnd % contentConstraintCount == 0 || GetContentCountWithoutCache() == 0)
                 {
                     break;  //just delete the whole row
                 }

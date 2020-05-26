@@ -42,6 +42,10 @@ namespace UnityEngine.UI
             go.SendMessage("ScrollCellReturn", SendMessageOptions.DontRequireReceiver);
             SG.ResourceManager.Instance.ReturnObjectToPool(go.gameObject);
         }
+        public virtual int GetCacheCount()
+        {
+            return frameCacheStack.Count;
+        }
 
         public virtual void ClearCache()
         {
