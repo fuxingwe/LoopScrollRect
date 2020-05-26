@@ -398,9 +398,12 @@ namespace UnityEngine.UI
                     if (move != 0)
                     {
                         Vector2 offset = GetVector(move);
-                        content.anchoredPosition += offset;
-                        m_PrevPosition += offset;
-                        m_ContentStartPosition += offset;
+                        Vector2 position = m_Content.anchoredPosition;
+                        position += offset;
+                        //if (m_MovementType == MovementType.Clamped)
+                        //    position += CalculateOffset(position - m_Content.anchoredPosition);
+                        SetContentAnchoredPosition(position);
+                        UpdateBounds();
                     }
                 }
             }
