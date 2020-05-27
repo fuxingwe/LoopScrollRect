@@ -499,30 +499,40 @@ namespace UnityEngine.UI
             else
                 sizeToFill = viewRect.rect.size.x;
 
-            float itemSize = 0;
+            bool reverse = reverseDirection;
 
-            while (sizeToFill > sizeFilled)
+            AddItem(ref sizeToFill, ref sizeFilled, ref reverse);
+            if (sizeToFill > sizeFilled && reverseDirection == !reverse)// && objectsToFill.Count <= viewCount + 1)
             {
-                float size = reverseDirection ? NewItemAtStart() : NewItemAtEnd();
-                if(size <= 0) break;
-                else itemSize = size;
-                sizeFilled += size;
+                AddItem(ref sizeToFill, ref sizeFilled, ref reverse);
             }
+
             prefabSource.ClearCache();
-            if (fillViewRect && itemSize > 0 && sizeFilled < sizeToFill)
-            {
-                int itemsToAddCount = (int)((sizeToFill - sizeFilled) / itemSize);        //calculate how many items can be added above the offset, so it still is visible in the view
-                int newOffset = offset - itemsToAddCount;
-                if (newOffset < 0) newOffset = 0;
-                if (newOffset != offset) RefillCells(newOffset);                 //refill again, with the new offset value, and now with fillViewRect disabled.
-            }
-
             Vector2 pos = m_Content.anchoredPosition;
             if (directionSign == -1)
                 pos.y = 0;
             else if (directionSign == 1)
                 pos.x = 0;
+
+            if (offset == totalCount - 1 && sizeToFill <= sizeFilled)
+            {
+                pos.y += sizeFilled - sizeToFill;
+            }
             m_Content.anchoredPosition = pos;
+        }
+
+        private void AddItem(ref float sizeToFill, ref float sizeFilled, ref bool reverse)
+        {
+            while (sizeToFill > sizeFilled)
+            {
+                float size = reverse ? NewItemAtStart() : NewItemAtEnd();
+                if (size <= 0)
+                {
+                    reverse = !reverse;
+                    break;
+                }
+                sizeFilled += size;
+            }
         }
 
         protected float NewItemAtStart()
