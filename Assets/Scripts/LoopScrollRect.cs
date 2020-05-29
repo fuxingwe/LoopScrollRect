@@ -75,6 +75,10 @@ namespace UnityEngine.UI
             }
         }
 
+        protected float m_Padding = 0;
+
+        private int refillCellsFlag = 0;
+
         private int m_ContentConstraintCount = 0;
         protected int contentConstraintCount
         {
@@ -271,6 +275,7 @@ namespace UnityEngine.UI
         private Vector2 m_PrevPosition = Vector2.zero;
         private Bounds m_PrevContentBounds;
         private Bounds m_PrevViewBounds;
+        private int m_PreCounts = 0;
         [NonSerialized]
         private bool m_HasRebuiltLayout = false;
 
@@ -452,9 +457,9 @@ namespace UnityEngine.UI
 
             float sizeToFill = 0, sizeFilled = 0;
             if (directionSign == -1)
-                sizeToFill = viewRect.rect.size.y;
+                sizeToFill = viewRect.rect.size.y - m_Padding;
             else
-                sizeToFill = viewRect.rect.size.x;
+                sizeToFill = viewRect.rect.size.x - m_Padding;
             
             while(sizeToFill > sizeFilled)
             {
@@ -471,6 +476,7 @@ namespace UnityEngine.UI
                 pos.y = dist;
             else if (directionSign == 1)
                 pos.x = -dist;
+            refillCellsFlag = 1;
             m_Content.anchoredPosition = pos;
         }
 
@@ -480,6 +486,7 @@ namespace UnityEngine.UI
                 return;
 
             StopMovement();
+            m_Content.anchoredPosition = Vector2.zero;
             itemTypeStart = reverseDirection ? totalCount - offset : offset;
             itemTypeEnd = itemTypeStart;
 
@@ -495,9 +502,9 @@ namespace UnityEngine.UI
             float sizeToFill = 0, sizeFilled = 0;
             // m_ViewBounds may be not ready when RefillCells on Start
             if (directionSign == -1)
-                sizeToFill = viewRect.rect.size.y;
+                sizeToFill = viewRect.rect.size.y - m_Padding;
             else
-                sizeToFill = viewRect.rect.size.x;
+                sizeToFill = viewRect.rect.size.x - m_Padding;
 
             //new from end
             while (sizeToFill > sizeFilled)
@@ -510,27 +517,35 @@ namespace UnityEngine.UI
                 sizeFilled += size;
             }
             //new from start(when offset is very larger,for example offset=totalCount-1)
-            while (sizeToFill > sizeFilled)
+            bool bFillFromStart = sizeToFill > sizeFilled;
+            if (bFillFromStart)
             {
-                float size = reverseDirection ? NewItemAtEnd() : NewItemAtStart();
-                if (size <= 0)
+                while (sizeToFill > sizeFilled)
                 {
-                    break;
+                    float size = reverseDirection ? NewItemAtEnd() : NewItemAtStart();
+                    if (size <= 0)
+                    {
+                        break;
+                    }
+                    sizeFilled += size;
                 }
-                sizeFilled += size;
             }
 
             prefabSource.ClearCache();
-            Vector2 pos = m_Content.anchoredPosition;
             //Move the extra size to align the end
-            float dist = Mathf.Max(0, sizeFilled - sizeToFill - contentSpacing);
-            if (reverseDirection)
-                dist = -dist;
-            if (directionSign == -1)
-                pos.y = dist;
-            else if (directionSign == 1)
-                pos.x = -dist;
-            m_Content.anchoredPosition = pos;
+            if (bFillFromStart)
+            {
+                Vector2 pos = m_Content.anchoredPosition;
+                float dist = Mathf.Max(0, sizeFilled - sizeToFill - contentSpacing);
+                if (reverseDirection)
+                    dist = -dist;
+                if (directionSign == -1)
+                    pos.y = dist;
+                else if (directionSign == 1)
+                    pos.x = -dist;
+                refillCellsFlag = 1;
+                m_Content.anchoredPosition = pos;
+            }
             //Debug.Log("===="+Time.frameCount+"   "+ pos +"   "+ sizeToFill +"   "+sizeFilled+"   "+ CalculateOffset(Vector2.zero));
         }
 
@@ -895,7 +910,11 @@ namespace UnityEngine.UI
         {
             if (!m_Content)
                 return;
-
+            if (refillCellsFlag > 0)
+            {
+                refillCellsFlag--;
+                return;
+            }
             EnsureLayoutHasRebuilt();
             UpdateScrollbarVisibility();
             UpdateBounds();
@@ -904,7 +923,7 @@ namespace UnityEngine.UI
             //AlmostZero 解决拖拽滑动停下来后还一直在微微刷新的问题
             if (!m_Dragging && (!offset.AlmostZero() || !m_Velocity.AlmostZero()))
             {
-                //Debug.Log(Time.frameCount+" "+offset.AlmostZero() + "   "+offset +"   "+ m_Velocity.AlmostZero()+"  "+ m_Velocity);
+                //Debug.Log(Time.frameCount + " " + offset.AlmostZero() + "   " + offset + "   " + m_Velocity.AlmostZero() + "  " + m_Velocity);
                 Vector2 position = m_Content.anchoredPosition;
                 for (int axis = 0; axis < 2; axis++)
                 {
@@ -948,7 +967,7 @@ namespace UnityEngine.UI
                 m_Velocity = Vector3.Lerp(m_Velocity, newVelocity, deltaTime * 10);
             }
 
-            if (m_ViewBounds != m_PrevViewBounds || m_ContentBounds != m_PrevContentBounds || m_Content.anchoredPosition != m_PrevPosition)
+            if (m_ViewBounds != m_PrevViewBounds || m_ContentBounds != m_PrevContentBounds || m_Content.anchoredPosition != m_PrevPosition||totalCount!=m_PreCounts)
             {
                 UpdateScrollbars(offset);
                 m_OnValueChanged.Invoke(normalizedPosition);
@@ -964,6 +983,7 @@ namespace UnityEngine.UI
                 m_PrevPosition = m_Content.anchoredPosition;
             m_PrevViewBounds = m_ViewBounds;
             m_PrevContentBounds = m_ContentBounds;
+            m_PreCounts = totalCount;
         }
 
         private void UpdateScrollbars(Vector2 offset)

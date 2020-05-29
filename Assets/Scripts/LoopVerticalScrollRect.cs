@@ -42,6 +42,19 @@ namespace UnityEngine.UI
             {
                 Debug.LogError("[LoopHorizontalScrollRect] unsupported GridLayoutGroup constraint");
             }
+
+            if (layout != null)
+            {
+                m_Padding = m_GridLayout.padding.top + m_GridLayout.padding.bottom;
+            }
+            else
+            {
+                HorizontalOrVerticalLayoutGroup layout1 = content.GetComponent<HorizontalOrVerticalLayoutGroup>();
+                if (layout1 != null)
+                {
+                    m_Padding = layout1.padding.top + layout1.padding.bottom;
+                }
+            }
         }
 
         protected override bool UpdateItems(Bounds viewBounds, Bounds contentBounds, bool bForwardAxis)
