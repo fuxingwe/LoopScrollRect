@@ -464,7 +464,7 @@ namespace UnityEngine.UI
             }
             prefabSource.ClearCache();
             Vector2 pos = m_Content.anchoredPosition;
-            float dist = Mathf.Max(0, sizeFilled - sizeToFill);
+            float dist = Mathf.Max(0, sizeFilled - sizeToFill - contentSpacing);
             if (reverseDirection)
                 dist = -dist;
             if (directionSign == -1)
@@ -474,7 +474,7 @@ namespace UnityEngine.UI
             m_Content.anchoredPosition = pos;
         }
 
-        public void RefillCells(int offset = 0, bool fillViewRect = false)
+        public void RefillCells(int offset = 0)
         {
             if (!Application.isPlaying || prefabSource == null)
                 return;
@@ -499,12 +499,27 @@ namespace UnityEngine.UI
             else
                 sizeToFill = viewRect.rect.size.x;
 
-            bool reverse = reverseDirection;
-
-            AddItem(sizeToFill, ref sizeFilled, ref reverse);
-            if (sizeToFill > sizeFilled && reverseDirection == !reverse)// && objectsToFill.Count <= viewCount + 1)
+            //new from end
+            while (sizeToFill > sizeFilled)
             {
-                AddItem(sizeToFill, ref sizeFilled, ref reverse);
+                float size = reverseDirection ? NewItemAtStart() : NewItemAtEnd();
+                if (size <= 0)
+                {
+                    break;
+                }
+                sizeFilled += size;
+            }
+            //This value is true when offset is very larger,for example offset=totalCount-1
+            bool bReachEnd = sizeToFill > sizeFilled;
+            //new from start
+            while (bReachEnd)
+            {
+                float size = reverseDirection ? NewItemAtEnd() : NewItemAtStart();
+                if (size <= 0)
+                {
+                    break;
+                }
+                sizeFilled += size;
             }
 
             prefabSource.ClearCache();
@@ -514,26 +529,13 @@ namespace UnityEngine.UI
             else if (directionSign == 1)
                 pos.x = 0;
 
-            if (offset == totalCount - 1 && sizeToFill <= sizeFilled)
+            //Move the extra size to align the end
+            if (bReachEnd && sizeToFill <= sizeFilled - contentSpacing)
             {
-                pos.y += sizeFilled - sizeToFill;
+                pos.y += sizeFilled - contentSpacing - sizeToFill;
             }
             m_Content.anchoredPosition = pos;
             //Debug.Log("===="+Time.frameCount+"   "+ pos +"   "+ sizeToFill +"   "+sizeFilled+"   "+ CalculateOffset(Vector2.zero));
-        }
-
-        private void AddItem(float sizeToFill, ref float sizeFilled, ref bool reverse)
-        {
-            while (sizeToFill > sizeFilled)
-            {
-                float size = reverse ? NewItemAtStart() : NewItemAtEnd();
-                if (size <= 0)
-                {
-                    reverse = !reverse;
-                    break;
-                }
-                sizeFilled += size;
-            }
         }
 
         protected float NewItemAtStart()
