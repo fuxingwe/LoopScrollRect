@@ -367,8 +367,8 @@ namespace UnityEngine.UI
                             {
                                 m_ItemBounds = GetBounds4Item(totalCount - 1);
                                 // reach bottom
-                                if ((directionSign == -1 && m_ItemBounds.min.y > m_ViewBounds.min.y) ||
-                                    (directionSign == 1 && m_ItemBounds.max.x < m_ViewBounds.max.x))
+                                if ((directionSign == -1 && m_ItemBounds.min.y >= m_ViewBounds.min.y) ||
+                                    (directionSign == 1 && m_ItemBounds.max.x <= m_ViewBounds.max.x))
                                 {
                                     needMoving = false;
                                     break;
@@ -377,8 +377,8 @@ namespace UnityEngine.UI
                             else if (offset < 0 && itemTypeStart == 0 && reverseDirection)
                             {
                                 m_ItemBounds = GetBounds4Item(0);
-                                if ((directionSign == -1 && m_ItemBounds.max.y < m_ViewBounds.max.y) ||
-                                    (directionSign == 1 && m_ItemBounds.min.x > m_ViewBounds.min.x))
+                                if ((directionSign == -1 && m_ItemBounds.max.y <= m_ViewBounds.max.y) ||
+                                    (directionSign == 1 && m_ItemBounds.min.x >= m_ViewBounds.min.x))
                                 {
                                     needMoving = false;
                                     break;
@@ -501,10 +501,10 @@ namespace UnityEngine.UI
 
             bool reverse = reverseDirection;
 
-            AddItem(ref sizeToFill, ref sizeFilled, ref reverse);
+            AddItem(sizeToFill, ref sizeFilled, ref reverse);
             if (sizeToFill > sizeFilled && reverseDirection == !reverse)// && objectsToFill.Count <= viewCount + 1)
             {
-                AddItem(ref sizeToFill, ref sizeFilled, ref reverse);
+                AddItem(sizeToFill, ref sizeFilled, ref reverse);
             }
 
             prefabSource.ClearCache();
@@ -519,9 +519,10 @@ namespace UnityEngine.UI
                 pos.y += sizeFilled - sizeToFill;
             }
             m_Content.anchoredPosition = pos;
+            //Debug.Log("===="+Time.frameCount+"   "+ pos +"   "+ sizeToFill +"   "+sizeFilled+"   "+ CalculateOffset(Vector2.zero));
         }
 
-        private void AddItem(ref float sizeToFill, ref float sizeFilled, ref bool reverse)
+        private void AddItem(float sizeToFill, ref float sizeFilled, ref bool reverse)
         {
             while (sizeToFill > sizeFilled)
             {
@@ -609,7 +610,7 @@ namespace UnityEngine.UI
 
         protected float NewItemAtEnd()
         {
-            Debug.Log("===NewItemAtEnd===" + Time.frameCount+"  "+ itemTypeEnd+"  "+ totalCount);
+            //Debug.Log("===NewItemAtEnd===" + Time.frameCount+"  "+ itemTypeEnd+"  "+ totalCount);
             if (totalCount >= 0 && itemTypeEnd >= totalCount)
             {
                 return 0;
@@ -902,9 +903,10 @@ namespace UnityEngine.UI
             UpdateBounds();
             float deltaTime = Time.unscaledDeltaTime;
             Vector2 offset = CalculateOffset(Vector2.zero);
-            //AlmostZero 解决滑动停下来后还一直在微微刷新的问题
+            //AlmostZero 解决拖拽滑动停下来后还一直在微微刷新的问题
             if (!m_Dragging && (!offset.AlmostZero() || !m_Velocity.AlmostZero()))
             {
+                //Debug.Log(Time.frameCount+" "+offset.AlmostZero() + "   "+offset +"   "+ m_Velocity.AlmostZero()+"  "+ m_Velocity);
                 Vector2 position = m_Content.anchoredPosition;
                 for (int axis = 0; axis < 2; axis++)
                 {
