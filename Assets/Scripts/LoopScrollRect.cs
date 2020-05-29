@@ -512,14 +512,17 @@ namespace UnityEngine.UI
             //This value is true when offset is very larger,for example offset=totalCount-1
             bool bReachEnd = sizeToFill > sizeFilled;
             //new from start
-            while (bReachEnd)
+            if (bReachEnd)
             {
-                float size = reverseDirection ? NewItemAtEnd() : NewItemAtStart();
-                if (size <= 0)
+                while (sizeToFill > sizeFilled)
                 {
-                    break;
+                    float size = reverseDirection ? NewItemAtEnd() : NewItemAtStart();
+                    if (size <= 0)
+                    {
+                        break;
+                    }
+                    sizeFilled += size;
                 }
-                sizeFilled += size;
             }
 
             prefabSource.ClearCache();
