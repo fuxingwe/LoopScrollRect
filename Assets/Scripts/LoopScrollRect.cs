@@ -509,34 +509,27 @@ namespace UnityEngine.UI
                 }
                 sizeFilled += size;
             }
-            //This value is true when offset is very larger,for example offset=totalCount-1
-            bool bReachEnd = sizeToFill > sizeFilled;
-            //new from start
-            if (bReachEnd)
+            //new from start(when offset is very larger,for example offset=totalCount-1)
+            while (sizeToFill > sizeFilled)
             {
-                while (sizeToFill > sizeFilled)
+                float size = reverseDirection ? NewItemAtEnd() : NewItemAtStart();
+                if (size <= 0)
                 {
-                    float size = reverseDirection ? NewItemAtEnd() : NewItemAtStart();
-                    if (size <= 0)
-                    {
-                        break;
-                    }
-                    sizeFilled += size;
+                    break;
                 }
+                sizeFilled += size;
             }
 
             prefabSource.ClearCache();
             Vector2 pos = m_Content.anchoredPosition;
-            if (directionSign == -1)
-                pos.y = 0;
-            else if (directionSign == 1)
-                pos.x = 0;
-
             //Move the extra size to align the end
-            if (bReachEnd && sizeToFill <= sizeFilled - contentSpacing)
-            {
-                pos.y += sizeFilled - contentSpacing - sizeToFill;
-            }
+            float dist = Mathf.Max(0, sizeFilled - sizeToFill - contentSpacing);
+            if (reverseDirection)
+                dist = -dist;
+            if (directionSign == -1)
+                pos.y = dist;
+            else if (directionSign == 1)
+                pos.x = -dist;
             m_Content.anchoredPosition = pos;
             //Debug.Log("===="+Time.frameCount+"   "+ pos +"   "+ sizeToFill +"   "+sizeFilled+"   "+ CalculateOffset(Vector2.zero));
         }
