@@ -45,7 +45,7 @@ namespace UnityEngine.UI
 
             if (layout != null)
             {
-                m_Padding = m_GridLayout.padding.top + m_GridLayout.padding.bottom;
+                m_Padding = layout.padding.top + layout.padding.bottom;
             }
             else
             {
@@ -65,7 +65,6 @@ namespace UnityEngine.UI
             //根据运动方向进行处理，可以把删除的移到另一端（DeleteItemAtEnd里面处理），并且避免触发另一端的删除
             if (bForwardAxis)
             {
-                bDeleted = false;
                 if (viewBounds.max.y < contentBounds.max.y - threshold)
                 {
                     float size = DeleteItemAtStart(), totalSize = size;
@@ -95,7 +94,6 @@ namespace UnityEngine.UI
             }
             else
             {
-                bDeleted = false;
                 if (viewBounds.min.y > contentBounds.min.y + threshold)
                 {
                     float size = DeleteItemAtEnd(), totalSize = size;

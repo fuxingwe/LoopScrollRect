@@ -533,7 +533,7 @@ namespace UnityEngine.UI
 
             prefabSource.ClearCache();
             //Move the extra size to align the end
-            if (bFillFromStart)
+            if (bFillFromStart || ((offset == totalCount - 1 && sizeToFill <= sizeFilled)))
             {
                 Vector2 pos = m_Content.anchoredPosition;
                 float dist = Mathf.Max(0, sizeFilled - sizeToFill - contentSpacing);
@@ -923,7 +923,7 @@ namespace UnityEngine.UI
             //AlmostZero 解决拖拽滑动停下来后还一直在微微刷新的问题
             if (!m_Dragging && (!offset.AlmostZero() || !m_Velocity.AlmostZero()))
             {
-                //Debug.Log(Time.frameCount + " " + offset.AlmostZero() + "   " + offset + "   " + m_Velocity.AlmostZero() + "  " + m_Velocity);
+                Debug.Log(Time.frameCount + " " + offset.AlmostZero() + "   " + offset + "   " + m_Velocity.AlmostZero() + "  " + m_Velocity);
                 Vector2 position = m_Content.anchoredPosition;
                 for (int axis = 0; axis < 2; axis++)
                 {
