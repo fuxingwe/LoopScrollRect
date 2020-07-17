@@ -444,6 +444,15 @@ namespace UnityEngine.UI
                 return;
             
             StopMovement();
+            if (offset < 0)
+            {
+                offset = 0;
+            }
+            else if (offset > 0 && offset < totalCount)
+            {
+                //将offset转成contentConstraintCount的整数倍，否则后续计算会异常
+                offset = offset - offset % contentConstraintCount;
+            }
             itemTypeEnd = reverseDirection ? offset : totalCount - offset;
             itemTypeStart = itemTypeEnd;
 
@@ -487,6 +496,15 @@ namespace UnityEngine.UI
 
             StopMovement();
             m_Content.anchoredPosition = Vector2.zero;
+            if (offset < 0)
+            {
+                offset = 0;
+            }
+            else if (offset > 0 && offset < totalCount)
+            {
+                //将offset转成contentConstraintCount的整数倍，否则后续计算会异常
+                offset = offset - offset % contentConstraintCount;
+            }
             itemTypeStart = reverseDirection ? totalCount - offset : offset;
             itemTypeEnd = itemTypeStart;
 
