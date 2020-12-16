@@ -60,9 +60,9 @@ namespace UnityEngine.UI
         protected override bool UpdateItems(Bounds viewBounds, Bounds contentBounds, bool bForwardAxis)
         {
             bool changed = false;
-            bool bDeleted = false;//É¾³ı¹ıµÄ»°£¬²»ĞèÒªÅĞ¶ÏÔö¼ÓÁË£¬É¾³ı»áÅĞ¶ÏÊÇ·ñÖ±½Ó°ÑÉ¾³ıµÄ×÷ÎªÁíÒ»¶ËÔö¼Ó
+            bool bDeleted = false;//åˆ é™¤è¿‡çš„è¯ï¼Œä¸éœ€è¦åˆ¤æ–­å¢åŠ äº†ï¼Œåˆ é™¤ä¼šåˆ¤æ–­æ˜¯å¦ç›´æ¥æŠŠåˆ é™¤çš„ä½œä¸ºå¦ä¸€ç«¯å¢åŠ 
             //Debug.Log(bForwardAxis + "============" + velocity.ToString());
-            //¸ù¾İÔË¶¯·½Ïò½øĞĞ´¦Àí£¬¿ÉÒÔ°ÑÉ¾³ıµÄÒÆµ½ÁíÒ»¶Ë£¨DeleteItemAtEndÀïÃæ´¦Àí£©£¬²¢ÇÒ±ÜÃâ´¥·¢ÁíÒ»¶ËµÄÉ¾³ı
+            //æ ¹æ®è¿åŠ¨æ–¹å‘è¿›è¡Œå¤„ç†ï¼Œå¯ä»¥æŠŠåˆ é™¤çš„ç§»åˆ°å¦ä¸€ç«¯ï¼ˆDeleteItemAtEndé‡Œé¢å¤„ç†ï¼‰ï¼Œå¹¶ä¸”é¿å…è§¦å‘å¦ä¸€ç«¯çš„åˆ é™¤
             if (bForwardAxis)
             {
                 if (viewBounds.max.y < contentBounds.max.y - threshold)
