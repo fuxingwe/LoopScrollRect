@@ -17,7 +17,30 @@ namespace UnityEngine.UI
 
         [Tooltip("Total count, negative means INFINITE mode")]
         public int totalCount;
+        
+        [SerializeField, Tooltip("数据不足一页时自动居中")]
+        bool autoCenter = false;
+        /// <summary>
+        /// 保存原始的padding数据，由于自动居中是通过改变padding值实现的，在刷新滚动框数据的时候需要先还原padding，否则会由于上次的居中导致下次不需要居中时padding值不对
+        /// </summary>
+        private RectOffset originalPadding;
+        
+        [SerializeField, Tooltip("无尽循环模式")]
+        bool loop = false;
+        [Serializable]
+        struct AutoScrollProperties
+        {
+            public bool enable;
+            public Vector2 speed;
+        }
+        [SerializeField, Tooltip("自动滚动循环轮播")]
+        AutoScrollProperties autoScrollProperties = new AutoScrollProperties { enable = false, speed = Vector2.one };
+        private bool bLooped
+        {
+            get { return loop || autoScrollProperties.enable; }
+        }
 
+        
         [HideInInspector]
         [NonSerialized]
         public LoopScrollDataSource dataSource = LoopScrollSendIndexSource.Instance;
@@ -429,7 +452,7 @@ namespace UnityEngine.UI
                 {
                     if (itemTypeEnd < totalCount)
                     {
-                        dataSource.ProvideData(content.GetChild(i), itemTypeEnd);
+                        dataSource.ProvideData(content.GetChild(i), itemTypeEnd,bLooped);
                         itemTypeEnd++;
                     }
                     else
@@ -447,6 +470,7 @@ namespace UnityEngine.UI
                 return;
             
             StopMovement();
+            RevertPadding();
             if (offset < 0)
             {
                 offset = 0;
@@ -505,14 +529,99 @@ namespace UnityEngine.UI
             m_Content.anchoredPosition = pos;
             m_ContentStartPosition = pos;
             UpdateScrollbars(Vector2.zero);
+
+            CheckAutoToCenter(sizeToFill - sizeFilled);
         }
 
+        private void UpdateCellNormalizePos()
+        {
+            m_ViewBounds = new Bounds(viewRect.rect.center, viewRect.rect.size);
+
+            for (int i = itemTypeStart; i < itemTypeEnd; i++)
+            {
+                int childIdx = i - itemTypeStart;
+
+                if (childIdx >= 0 && childIdx < content.childCount)
+                {
+                    var itemBounds = GetBounds4Item(i);
+
+                    var normalizedPos = 0f;
+                    if (directionSign == -1)
+                    {
+                        float offset = reverseDirection ? (itemBounds.center.y - m_ViewBounds.min.y) : (m_ViewBounds.max.y - itemBounds.center.y);
+                        normalizedPos = Mathf.Clamp(offset / m_ViewBounds.size.y, 0f, 1f);
+                    }
+                    else if (directionSign == 1)
+                    {
+                        float offset = reverseDirection ? (m_ViewBounds.max.x - itemBounds.center.x) : (itemBounds.center.x - m_ViewBounds.min.x);
+                        normalizedPos = Mathf.Clamp(offset / m_ViewBounds.size.x, 0f, 1f);
+                    }
+                    dataSource.UpdateCellNormalizedPos(content.GetChild(childIdx), normalizedPos);
+                }
+            }
+        }
+
+        protected override void Awake()
+        {
+            if (autoCenter)
+            {//自动居中的话要先保存原始偏移
+                LayoutGroup layout = m_Content.GetComponent<LayoutGroup>();
+                if (layout != null)
+                {
+                    originalPadding = layout.padding;
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 恢复Padding值，防止数据不足居中后，下次数据足了偏移不对
+        /// </summary>
+        private void RevertPadding()
+        {
+            if (autoCenter)
+            {
+                LayoutGroup layout = m_Content.GetComponent<LayoutGroup>();
+                if (layout != null)
+                {
+                    layout.padding=originalPadding;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 数据不足一页时自动居中
+        /// </summary>
+        /// <param name="notFillSize"></param>
+        private void CheckAutoToCenter(float notFillSize)
+        {
+            if (autoCenter && notFillSize > 0 && originalPadding!=null)
+            {
+                LayoutGroup layout = m_Content.GetComponent<LayoutGroup>();
+                if (layout != null)
+                {
+                    int addValue = (int) notFillSize / 2;
+                    RectOffset rectOffset = new RectOffset(originalPadding.left, originalPadding.right, originalPadding.top, originalPadding.bottom);
+                    if (directionSign == 1)
+                    {
+                        rectOffset.left += addValue;
+                    }
+                    else
+                    {
+                        rectOffset.top += addValue;
+                    }
+
+                    layout.padding = rectOffset;
+                }
+            }
+        }
+        
         public void RefillCells(int offset = 0)
         {
             if (!Application.isPlaying || prefabSource == null)
                 return;
 
             StopMovement();
+            RevertPadding();
             m_Content.anchoredPosition = Vector2.zero;
             if (offset < 0)
             {
@@ -586,6 +695,7 @@ namespace UnityEngine.UI
                 m_ContentStartPosition = pos;
                 UpdateScrollbars(Vector2.zero);
             }
+            CheckAutoToCenter(sizeToFill - sizeFilled);
             //Debug.Log("===="+Time.frameCount+"   "+ pos +"   "+ sizeToFill +"   "+sizeFilled+"   "+ CalculateOffset(Vector2.zero));
         }
 
@@ -736,7 +846,7 @@ namespace UnityEngine.UI
             RectTransform nextItem = prefabSource.GetObject(content).transform as RectTransform;
             //nextItem.transform.SetParent(content, false);
             //nextItem.gameObject.SetActive(true);
-            dataSource.ProvideData(nextItem, itemIdx);
+            dataSource.ProvideData(nextItem, itemIdx,bLooped);
             return nextItem;
         }
         //==========LoopScrollRect==========
@@ -946,6 +1056,13 @@ namespace UnityEngine.UI
             }
         }
 
+        protected virtual void Update()
+        {
+            if (autoScrollProperties.enable)
+            {
+                ProcessAutoScroll();
+            }
+        }
         protected virtual void LateUpdate()
         {
             if (!m_Content)
@@ -1011,6 +1128,12 @@ namespace UnityEngine.UI
             {
                 UpdateScrollbars(offset);
                 m_OnValueChanged.Invoke(normalizedPosition);
+                UpdateCellNormalizePos();
+                //无尽或轮播设置totalCount为-1,由LoopScrollRect原设计逻辑导致的，以totalCount作为无尽模式标识
+                if (bLooped && totalCount != -1)
+                {
+                    totalCount = -1;
+                }
                 UpdatePrevData();
             }
         }
@@ -1472,6 +1595,36 @@ namespace UnityEngine.UI
             SetDirtyCaching();
         }
 #endif
+        private void ProcessAutoScroll()
+        {
+            if (!IsActive())
+                return;
+
+            EnsureLayoutHasRebuilt();
+            UpdateBounds();
+
+            Vector2 delta = autoScrollProperties.speed;
+            if (vertical && !horizontal)
+            {
+                if (Mathf.Abs(delta.x) > Mathf.Abs(delta.y))
+                    delta.y = delta.x;
+                delta.x = 0;
+            }
+            if (horizontal && !vertical)
+            {
+                if (Mathf.Abs(delta.y) > Mathf.Abs(delta.x))
+                    delta.x = delta.y;
+                delta.y = 0;
+            }
+
+            Vector2 position = m_Content.anchoredPosition;
+            position += delta * m_ScrollSensitivity;
+            if (m_MovementType == MovementType.Clamped)
+                position += CalculateOffset(position - m_Content.anchoredPosition);
+
+            SetContentAnchoredPosition(position);
+            UpdateBounds();
+        }
     }
 
     public static class UnityVectorExtensions
