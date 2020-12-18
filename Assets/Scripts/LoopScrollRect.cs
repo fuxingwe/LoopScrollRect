@@ -27,19 +27,33 @@ namespace UnityEngine.UI
         
         [SerializeField, Tooltip("无尽循环模式")]
         bool loop = false;
+        
         [Serializable]
-        struct AutoScrollProperties
+        struct AutoLoopScroll
         {
             public bool enable;
             public Vector2 speed;
         }
         [SerializeField, Tooltip("自动滚动循环轮播")]
-        AutoScrollProperties autoScrollProperties = new AutoScrollProperties { enable = false, speed = Vector2.one };
+        AutoLoopScroll autoLoopScroll = new AutoLoopScroll { enable = false, speed = Vector2.one };
         private bool bLooped
         {
-            get { return loop || autoScrollProperties.enable; }
+            get { return loop || autoLoopScroll.enable; }
         }
 
+        [Serializable]
+        struct AutoScrollToCenter
+        {
+            public bool enable;
+            public float centerOffset;
+            public float speed;
+        }
+
+        [SerializeField, Tooltip("Cell自动吸附到滚动框中央,配置偏移值centerOffset可以使吸附点在滚动框内任意位置")]
+        AutoScrollToCenter autoScrollToCenter = new AutoScrollToCenter { enable = false, speed = 100f,centerOffset=0 };
+
+        [SerializeField, Tooltip("是否生成标准化坐标变化事件，用于实现Cell动画")]
+        public bool GenerateNormalizePosChangedEvent = false;
         
         [HideInInspector]
         [NonSerialized]
@@ -529,8 +543,11 @@ namespace UnityEngine.UI
             m_Content.anchoredPosition = pos;
             m_ContentStartPosition = pos;
             UpdateScrollbars(Vector2.zero);
-
             CheckAutoToCenter(sizeToFill - sizeFilled);
+            if (GenerateNormalizePosChangedEvent)
+            {
+                UpdateCellNormalizePos();
+            }
         }
 
         private void UpdateCellNormalizePos()
@@ -696,6 +713,10 @@ namespace UnityEngine.UI
                 UpdateScrollbars(Vector2.zero);
             }
             CheckAutoToCenter(sizeToFill - sizeFilled);
+            if (GenerateNormalizePosChangedEvent)
+            {
+                UpdateCellNormalizePos();
+            }
             //Debug.Log("===="+Time.frameCount+"   "+ pos +"   "+ sizeToFill +"   "+sizeFilled+"   "+ CalculateOffset(Vector2.zero));
         }
 
@@ -998,6 +1019,10 @@ namespace UnityEngine.UI
                 return;
 
             m_Dragging = false;
+            if (autoScrollToCenter.enable)
+            {
+                ScrollToCenter();
+            }
         }
 
         public virtual void OnDrag(PointerEventData eventData)
@@ -1058,9 +1083,9 @@ namespace UnityEngine.UI
 
         protected virtual void Update()
         {
-            if (autoScrollProperties.enable)
+            if (autoLoopScroll.enable)
             {
-                ProcessAutoScroll();
+                ProcessAutoLoopScroll();
             }
         }
         protected virtual void LateUpdate()
@@ -1128,7 +1153,10 @@ namespace UnityEngine.UI
             {
                 UpdateScrollbars(offset);
                 m_OnValueChanged.Invoke(normalizedPosition);
-                UpdateCellNormalizePos();
+                if (GenerateNormalizePosChangedEvent)
+                {
+                    UpdateCellNormalizePos();
+                }
                 //无尽或轮播设置totalCount为-1,由LoopScrollRect原设计逻辑导致的，以totalCount作为无尽模式标识
                 if (bLooped && totalCount != -1)
                 {
@@ -1595,7 +1623,10 @@ namespace UnityEngine.UI
             SetDirtyCaching();
         }
 #endif
-        private void ProcessAutoScroll()
+        /// <summary>
+        /// 自动循环轮播滚动
+        /// </summary>
+        private void ProcessAutoLoopScroll()
         {
             if (!IsActive())
                 return;
@@ -1603,7 +1634,7 @@ namespace UnityEngine.UI
             EnsureLayoutHasRebuilt();
             UpdateBounds();
 
-            Vector2 delta = autoScrollProperties.speed;
+            Vector2 delta = autoLoopScroll.speed;
             if (vertical && !horizontal)
             {
                 if (Mathf.Abs(delta.x) > Mathf.Abs(delta.y))
@@ -1625,7 +1656,143 @@ namespace UnityEngine.UI
             SetContentAnchoredPosition(position);
             UpdateBounds();
         }
+        
+        /// <summary>
+        /// 滚动到吸附位置中央
+        /// </summary>
+        private void ScrollToCenter()
+        {
+            if (totalCount == 0 || itemTypeEnd <= itemTypeStart || autoScrollToCenter.speed <= 0)
+            {
+                return;
+            }
+
+            StopAllCoroutines();
+            StartCoroutine(ScrollToCenterCoroutine());
+        }
+       
+        /// <summary>
+        /// 吸附功能的协程逻辑
+        /// </summary>
+        /// <returns></returns>
+        IEnumerator ScrollToCenterCoroutine()
+        {
+            int centerIndex = FindClosestIndexToCenter(autoScrollToCenter.centerOffset);
+            bool needMoving = true;
+            while (needMoving)
+            {
+                yield return null;
+                if (!m_Dragging)
+                {
+                    float move = 0;
+                    if (centerIndex < itemTypeStart)
+                    {
+                        move = -Time.deltaTime * autoScrollToCenter.speed;
+                    }
+                    else if (centerIndex >= itemTypeEnd)
+                    {
+                        move = Time.deltaTime * autoScrollToCenter.speed;
+                    }
+                    else
+                    {
+                        m_ViewBounds = new Bounds(viewRect.rect.center, viewRect.rect.size);
+                        var m_ItemBounds = GetBounds4Item(centerIndex);
+                        var offset = 0.0f;
+                        float itemPos = 0;
+                        if (directionSign == -1)
+                        {
+                            if (autoScrollToCenter.centerOffset == 0)
+                            {
+                                itemPos = m_ItemBounds.center.y;
+                            }
+                            else if (autoScrollToCenter.centerOffset > 0)
+                            {
+                                itemPos = m_ItemBounds.max.y;
+                            }
+                            else
+                            {
+                                itemPos = m_ItemBounds.min.y;
+                            }
+
+                            offset = m_ViewBounds.center.y + autoScrollToCenter.centerOffset - itemPos;
+                        }
+                        else if (directionSign == 1)
+                        {
+                            if (autoScrollToCenter.centerOffset == 0)
+                            {
+                                itemPos = m_ItemBounds.center.x;
+                            }
+                            else if (autoScrollToCenter.centerOffset > 0)
+                            {
+                                itemPos = m_ItemBounds.max.x;
+                            }
+                            else
+                            {
+                                itemPos = m_ItemBounds.min.x;
+                            }
+                            offset = itemPos - (m_ViewBounds.center.x+autoScrollToCenter.centerOffset);
+                        }
+
+                        float maxMove = Time.deltaTime * autoScrollToCenter.speed;
+                        if (Mathf.Abs(offset) < maxMove)
+                        {
+                            needMoving = false;
+                            move = offset;
+                        }
+                        else
+                            move = Mathf.Sign(offset) * maxMove;
+                    }
+
+                    if (move != 0)
+                    {
+                        Vector2 offset = GetVector(move);
+                        content.anchoredPosition += offset;
+                        m_PrevPosition += offset;
+                        m_ContentStartPosition += offset;
+                    }
+                }
+            }
+            StopMovement();
+            UpdatePrevData();
+        }
+        
+        /// <summary>
+        /// 获取距离正中间的Cell索引
+        /// </summary>
+        /// <param name="centerOffset">中间位置偏移，比如获取竖直滚动条最上边位置的，可以将Center向上偏移滚动框Height的一半</param>
+        /// <returns></returns>
+        private int FindClosestIndexToCenter(float centerOffset)
+        {
+            m_ViewBounds = new Bounds(viewRect.rect.center, viewRect.rect.size);
+            int closestIndex = itemTypeStart;
+            float closestDistance = float.MaxValue;
+
+            for (int i = itemTypeStart; i < itemTypeEnd; i++)
+            {
+                int childIdx = i - itemTypeStart;
+
+                if (childIdx >= 0 && childIdx < content.childCount)
+                {
+                    var itemBounds = GetBounds4Item(i);
+
+                    float itemDistance = float.MaxValue;
+                    if (directionSign == -1)
+                        itemDistance = Mathf.Abs(m_ViewBounds.center.y+centerOffset - itemBounds.center.y);
+                    else if (directionSign == 1)
+                        itemDistance = Mathf.Abs(itemBounds.center.x+centerOffset - m_ViewBounds.center.x);
+
+                    if (itemDistance < closestDistance)
+                    {
+                        closestIndex = i;
+                        closestDistance = itemDistance;
+                    }
+                }
+            }
+
+            return closestIndex;
+        }
     }
+    
 
     public static class UnityVectorExtensions
     {
