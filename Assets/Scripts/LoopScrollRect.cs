@@ -657,17 +657,11 @@ namespace UnityEngine.UI
             return size;
         }
 
-        private int GetContentCountWithoutCache()
-        {
-            return content.childCount - prefabSource.GetCacheCount();
-        }
-
         protected float DeleteItemAtStart()
         {
             //Debug.Log("===DeleteItemAtStart===" + Time.frameCount);
             // special case: when moving or dragging, we cannot simply delete start when we've reached the end
-            if (((m_Dragging || !m_Velocity.AlmostZero()) && totalCount >= 0 && itemTypeEnd >= totalCount - contentConstraintCount)
-                || GetContentCountWithoutCache() == 0)
+            if ((m_Dragging || !m_Velocity.AlmostZero()) && totalCount >= 0 && itemTypeEnd >= totalCount - contentConstraintCount)
             {
                 return 0;
             }
@@ -743,8 +737,7 @@ namespace UnityEngine.UI
         protected float DeleteItemAtEnd()
         {
             //Debug.Log("===DeleteItemAtEnd===" + Time.frameCount);
-            if (((m_Dragging || !m_Velocity.AlmostZero()) && totalCount >= 0 && itemTypeStart < contentConstraintCount) 
-                || GetContentCountWithoutCache() == 0)
+            if ((m_Dragging || !m_Velocity.AlmostZero()) && totalCount >= 0 && itemTypeStart < contentConstraintCount)
             {
                 return 0;
             }
