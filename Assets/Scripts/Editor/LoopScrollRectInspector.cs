@@ -32,6 +32,11 @@ public class LoopScrollRectInspector : Editor
 		{
 			scroll.RefillCellsFromEnd();
 		}
+		if(GUILayout.Button("RefillCellsToEnd"))
+		{
+			scroll.RefillCells(scroll.totalCount-1);
+		}
+		
         EditorGUILayout.EndHorizontal();
 
         EditorGUIUtility.labelWidth = 45;

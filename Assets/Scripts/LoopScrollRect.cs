@@ -50,14 +50,18 @@ namespace UnityEngine.UI
         struct AutoScrollToCenter
         {
             public bool enable;
+            [Tooltip("默认值是0，表示吸附到滚动框正中间，有值则相对中间进行偏移，例如配为竖直ScrollRect长度的一半可以表示吸附到滚动框最上边")]
             public float centerOffset;
+            [Tooltip("触发吸附运算的速度，拖拽后滑动列表有惯性速度，当速度低于该值时触发吸附运动")]
+            public float triggerSpeed;
+            [Tooltip("吸附时运动速度")]
             public float speed;
         }
 
         [SerializeField, Tooltip("Cell自动吸附到滚动框中央,配置偏移值centerOffset可以使吸附点在滚动框内任意位置")]
-        AutoScrollToCenter autoScrollToCenter = new AutoScrollToCenter { enable = false, speed = 100f,centerOffset=0 };
+        AutoScrollToCenter autoScrollToCenter = new AutoScrollToCenter { enable = false,triggerSpeed=50f, speed = 100f,centerOffset=0 };
 
-        [SerializeField, Tooltip("是否生成标准化坐标变化事件，用于实现Cell动画")]
+        [SerializeField, Tooltip("是否生成标准化坐标变化事件，用于检测Item是否被Mask裁剪/检测Item位置变化实现滚动时的Item动画")]
         public bool GenerateNormalizePosChangedEvent = false;
         
         [HideInInspector]
@@ -90,7 +94,7 @@ namespace UnityEngine.UI
         protected int directionSign = 0;
 
         private bool m_ContentSpaceInit = false;
-        private float m_ContentSpacing = -1;
+        private float m_ContentSpacing = 0;
         protected GridLayoutGroup m_GridLayout = null;
         protected float contentSpacing
         {
@@ -174,7 +178,7 @@ namespace UnityEngine.UI
             }
         }
 
-        protected virtual bool UpdateItems(Bounds viewBounds, Bounds contentBounds, bool bForwardAxis) { return false; }
+        protected virtual bool UpdateItems(Bounds viewBounds, Bounds contentBounds) { return false; }
         //==========LoopScrollRect==========
 
         public enum MovementType
@@ -483,15 +487,18 @@ namespace UnityEngine.UI
 
             StopMovement();
             RevertPadding();
-            if (offset < 0)
+            if (offset < 0 || totalCount<=0)
             {
                 offset = 0;
             }
-            else if (offset > 0 && offset < totalCount)
+            else if (offset >= totalCount)
             {
-                //将offset转成contentConstraintCount的整数倍，否则后续计算会异常
-                offset = offset - offset % contentConstraintCount;
+                Debug.LogError($"Invalid offset:{offset},totalCount:{totalCount}");
+                offset = totalCount - 1;
             }
+            //将offset转成contentConstraintCount的整数倍，否则后续计算会异常
+            offset = offset - offset % contentConstraintCount;
+            
             itemTypeEnd = reverseDirection ? offset : totalCount - offset;
             itemTypeStart = itemTypeEnd;
 
@@ -554,15 +561,18 @@ namespace UnityEngine.UI
             StopMovement();
             RevertPadding();
             m_Content.anchoredPosition = Vector2.zero;
-            if (offset < 0)
+            if (offset < 0 || totalCount<=0)
             {
                 offset = 0;
             }
-            else if (offset > 0 && offset < totalCount)
+            else if (offset >= totalCount)
             {
-                //将offset转成contentConstraintCount的整数倍，否则后续计算会异常
-                offset = offset - offset % contentConstraintCount;
+                Debug.LogError($"Invalid offset:{offset},totalCount:{totalCount}");
+                offset = totalCount - 1;
             }
+            //将offset转成contentConstraintCount的整数倍，否则后续计算会异常
+            offset = offset - offset % contentConstraintCount;
+            
             itemTypeStart = reverseDirection ? totalCount - offset : offset;
             itemTypeEnd = itemTypeStart;
 
@@ -581,46 +591,45 @@ namespace UnityEngine.UI
             else
                 sizeToFill = viewRect.rect.size.x - m_Padding;
 
-            //new from end
+            float itemSize = 0;
+
             while (sizeToFill > sizeFilled)
             {
                 float size = reverseDirection ? NewItemAtStart() : NewItemAtEnd();
                 if (size <= 0)
-                {
                     break;
-                }
+                itemSize = size;
                 sizeFilled += size;
             }
-            //new from start(when offset is very larger,for example offset=totalCount-1)
-            bool bFillFromStart = sizeToFill > sizeFilled;
-            if (bFillFromStart)
+
+            // refill from start in case not full yet
+            while (sizeToFill > sizeFilled)
             {
-                while (sizeToFill > sizeFilled)
-                {
-                    float size = reverseDirection ? NewItemAtEnd() : NewItemAtStart();
-                    if (size <= 0)
-                        break;
-                    sizeFilled += size;
-                }
+                float size = reverseDirection ? NewItemAtEnd() : NewItemAtStart();
+                if (size <= 0)
+                    break;
+                sizeFilled += size;
             }
 
-            //Move the extra size to align the end
-            if (bFillFromStart || ((offset == totalCount - 1 && sizeToFill <= sizeFilled)))
+            if (fillViewRect && itemSize > 0 && sizeFilled < sizeToFill)
             {
-                Vector2 pos = m_Content.anchoredPosition;
-                float dist = Mathf.Max(0, sizeFilled - sizeToFill - contentSpacing);
-                if (reverseDirection)
-                    dist = -dist;
-                if (directionSign == -1)
-                    pos.y = dist;
-                else if (directionSign == 1)
-                    pos.x = -dist;
-                refillCellsFlag = 1;
-                m_Content.anchoredPosition = pos;
-                m_ContentStartPosition = pos;
-                ClearTempPool();
-                UpdateScrollbars(Vector2.zero);
+                int itemsToAddCount = (int)((sizeToFill - sizeFilled) / itemSize);        //calculate how many items can be added above the offset, so it still is visible in the view
+                int newOffset = offset - itemsToAddCount;
+                if (newOffset < 0) newOffset = 0;
+                if (newOffset != offset) RefillCells(newOffset);                 //refill again, with the new offset value, and now with fillViewRect disabled.
             }
+
+            Vector2 pos = m_Content.anchoredPosition;
+            if (directionSign == -1)
+                pos.y = 0;
+            else if (directionSign == 1)
+                pos.x = 0;
+            refillCellsFlag = 1;
+            m_Content.anchoredPosition = pos;
+            m_ContentStartPosition = pos;
+
+            ClearTempPool();
+            UpdateScrollbars(Vector2.zero);
             CheckAutoToCenter(sizeToFill - sizeFilled);
             if (GenerateNormalizePosChangedEvent)
             {
@@ -631,7 +640,6 @@ namespace UnityEngine.UI
 
         protected float NewItemAtStart()
         {
-            //Debug.Log("===NewItemAtStart===" + Time.frameCount);
             if (totalCount >= 0 && itemTypeStart - contentConstraintCount < 0)
             {
                 return 0;
@@ -659,7 +667,6 @@ namespace UnityEngine.UI
 
         protected float DeleteItemAtStart()
         {
-            //Debug.Log("===DeleteItemAtStart===" + Time.frameCount);
             // special case: when moving or dragging, we cannot simply delete start when we've reached the end
             if ((m_Dragging || !m_Velocity.AlmostZero()) && totalCount >= 0 && itemTypeEnd >= totalCount - contentConstraintCount)
             {
@@ -694,8 +701,6 @@ namespace UnityEngine.UI
                 m_PrevPosition -= offset;
                 m_ContentStartPosition -= offset;
             }
-            if (size > 0)
-                NewItemAtEnd();
             return size;
         }
 
@@ -736,7 +741,6 @@ namespace UnityEngine.UI
 
         protected float DeleteItemAtEnd()
         {
-            //Debug.Log("===DeleteItemAtEnd===" + Time.frameCount);
             if ((m_Dragging || !m_Velocity.AlmostZero()) && totalCount >= 0 && itemTypeStart < contentConstraintCount)
             {
                 return 0;
@@ -769,8 +773,6 @@ namespace UnityEngine.UI
                 m_PrevPosition += offset;
                 m_ContentStartPosition += offset;
             }
-            if(size>0)
-                NewItemAtStart();
             return size;
         }
 
@@ -782,14 +784,20 @@ namespace UnityEngine.UI
             if (deletedItemTypeStart > 0)
             {
                 deletedItemTypeStart--;
-                nextItem = content.GetChild(0) as RectTransform;
-                nextItem.SetSiblingIndex(itemIdx - itemTypeStart + deletedItemTypeStart);
+                if (content.childCount > 0)
+                {
+                    nextItem = content.GetChild(0) as RectTransform;
+                    nextItem.SetSiblingIndex(itemIdx - itemTypeStart + deletedItemTypeStart);
+                }
             }
             else if (deletedItemTypeEnd > 0)
             {
                 deletedItemTypeEnd--;
-                nextItem = content.GetChild(content.childCount - 1) as RectTransform;
-                nextItem.SetSiblingIndex(itemIdx - itemTypeStart + deletedItemTypeStart);
+                if (content.childCount > 0)
+                {
+                    nextItem = content.GetChild(content.childCount - 1) as RectTransform;
+                    nextItem.SetSiblingIndex(itemIdx - itemTypeStart + deletedItemTypeStart);
+                }
             }
             else
             {
@@ -817,7 +825,10 @@ namespace UnityEngine.UI
             while (deletedItemTypeEnd > 0)
             {
                 deletedItemTypeEnd--;
-                prefabSource.ReturnObject(content.GetChild(content.childCount - 1));
+                if (content.childCount > 0)
+                {
+                    prefabSource.ReturnObject(content.GetChild(content.childCount - 1));
+                }
             }
         }
         //==========LoopScrollRect==========
@@ -970,10 +981,6 @@ namespace UnityEngine.UI
                 return;
 
             m_Dragging = false;
-            if (autoScrollToCenter.enable)
-            {
-                ScrollToCenter();
-            }
         }
 
         public virtual void OnDrag(PointerEventData eventData)
@@ -1018,23 +1025,16 @@ namespace UnityEngine.UI
 
             if ((position - m_Content.anchoredPosition).sqrMagnitude > 0.001f)
             {
-                bool bForwardAxis = false;
-                if (directionSign == 1)
-                {
-                    bForwardAxis = m_Content.anchoredPosition.x < position.x;
-                }
-                else if (directionSign == -1)
-                {
-                    bForwardAxis = m_Content.anchoredPosition.y < position.y;
-                }
                 m_Content.anchoredPosition = position;
-                UpdateBounds(true, bForwardAxis);
+                UpdateBounds(true);
             }
         }
+
         protected virtual void LateUpdate()
         {
             if (!m_Content)
                 return;
+            //Ignore the frame with RefillCells
             if (refillCellsFlag > 0)
             {
                 refillCellsFlag--;
@@ -1043,9 +1043,19 @@ namespace UnityEngine.UI
             EnsureLayoutHasRebuilt();
             UpdateScrollbarVisibility();
             UpdateBounds();
+            if (autoScrollToCenter.enable && !m_Dragging)
+            {//非拖拽情况速率小到一定值之后立即停下进行吸附运算
+                float velocity = m_Velocity.magnitude;
+                if(velocity>0 && velocity<autoScrollToCenter.triggerSpeed)
+                {
+                    StopMovement();
+                    ScrollToCenter();
+                }
+            }
+            
             float deltaTime = Time.unscaledDeltaTime;
             Vector2 offset = CalculateOffset(Vector2.zero);
-            //AlmostZero 解决拖拽滑动停下来后还一直在微微刷新的问题
+            //AlmostZero 解决滑动停下来后还一直在微微刷新的问题
             if (!m_Dragging && (!offset.AlmostZero() || !m_Velocity.AlmostZero()))
             {
                 Vector2 position = m_Content.anchoredPosition;
@@ -1255,11 +1265,10 @@ namespace UnityEngine.UI
 
             if (Mathf.Abs(localPosition[axis] - newLocalPosition) > 0.01f)
             {
-                bool bForwardAxis = localPosition[axis] < newLocalPosition;
                 localPosition[axis] = newLocalPosition;
                 m_Content.localPosition = localPosition;
                 m_Velocity[axis] = 0;
-                UpdateBounds(true, bForwardAxis);
+                UpdateBounds(true);
             }
         }
 
@@ -1408,7 +1417,7 @@ namespace UnityEngine.UI
             }
         }
 
-        private void UpdateBounds(bool updateItems = false , bool bForwardAxis = false)
+        private void UpdateBounds(bool updateItems = false)
         {
             m_ViewBounds = new Bounds(viewRect.rect.center, viewRect.rect.size);
             m_ContentBounds = GetBounds();
@@ -1418,7 +1427,7 @@ namespace UnityEngine.UI
 
             // ============LoopScrollRect============
             // Don't do this in Rebuild
-            if (Application.isPlaying && updateItems && UpdateItems(m_ViewBounds, m_ContentBounds, bForwardAxis))
+            if (Application.isPlaying && updateItems && UpdateItems(m_ViewBounds, m_ContentBounds))
             {
                 Canvas.ForceUpdateCanvases();
                 m_ContentBounds = GetBounds();
@@ -1570,10 +1579,10 @@ namespace UnityEngine.UI
         {
             if (autoLoopScroll.enable)
             {
-                ProcessAutoLoopScroll();
+                ProcessAutoScroll();
             }
         }
-		
+ 
         private void UpdateCellNormalizePos()
         {
             m_ViewBounds = new Bounds(viewRect.rect.center, viewRect.rect.size);
@@ -1587,17 +1596,21 @@ namespace UnityEngine.UI
                     var itemBounds = GetBounds4Item(i);
 
                     var normalizedPos = 0f;
+                    bool bCliped = false;
                     if (directionSign == -1)
                     {
+                        bCliped=(itemBounds.min.y < m_ViewBounds.min.y)||(itemBounds.max.y>m_ViewBounds.max.y);
                         float offset = reverseDirection ? (itemBounds.center.y - m_ViewBounds.min.y) : (m_ViewBounds.max.y - itemBounds.center.y);
                         normalizedPos = Mathf.Clamp(offset / m_ViewBounds.size.y, 0f, 1f);
                     }
                     else if (directionSign == 1)
                     {
+                        bCliped=(itemBounds.min.x < m_ViewBounds.min.x)||(itemBounds.max.x>m_ViewBounds.max.x);
                         float offset = reverseDirection ? (m_ViewBounds.max.x - itemBounds.center.x) : (itemBounds.center.x - m_ViewBounds.min.x);
                         normalizedPos = Mathf.Clamp(offset / m_ViewBounds.size.x, 0f, 1f);
                     }
-                    dataSource.UpdateCellNormalizedPos(content.GetChild(childIdx), normalizedPos);
+                    // GLog.Info("--------------------UpdateCellNormalizePos:" + childIdx + "   " + normalizedPos+"  "+bCliped);
+                    dataSource.UpdateCellNormalizedPos(content.GetChild(childIdx), normalizedPos,bCliped);
                 }
             }
         }
@@ -1659,7 +1672,7 @@ namespace UnityEngine.UI
         /// <summary>
         /// 自动循环轮播滚动
         /// </summary>
-        private void ProcessAutoLoopScroll()
+        private void ProcessAutoScroll()
         {
             if (!IsActive())
                 return;

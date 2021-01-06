@@ -2,11 +2,35 @@
 using UnityEngine.UI;
 using System.Collections;
 
-public class ScrollIndexCallback1 : MonoBehaviour 
+public class ScrollIndexCallback1 : MonoBehaviour ,IScrollCell 
 {
     public Image image;
 	public Text text;
+    public Animator animator;
 
+    private readonly int scrollTriggerHash = Animator.StringToHash("scroll");
+    public void UpdateNormalizedPos(float normalizedPos)
+    {
+        // Debug.Log(normalizedPos);
+        if(animator)
+            animator.Play(scrollTriggerHash, -1, normalizedPos);
+        // Debug.Log(animator.speed);
+    }
+
+    void Awake()
+    {
+        if(animator)
+            animator.speed = 0;
+        Button button  = this.GetComponent<Button>();
+        button.onClick.AddListener(TestOnClicked);
+        button.onClick.AddListener(TestOnClicked);
+        button.onClick.RemoveAllListeners();
+    }
+
+    void TestOnClicked()
+    {
+        Debug.Log("TestOnClicked");
+    }
     void ScrollCellIndex (int idx) 
     {
 		string name = "Cell " + idx.ToString ();

@@ -12,7 +12,7 @@ namespace UnityEngine.UI
     {
         public abstract void ProvideData(Transform transform, int idx, bool bCircled);
         
-        public void UpdateCellNormalizedPos(Transform transform, float normalizedPos)
+        public void UpdateCellNormalizedPos(Transform transform, float normalizedPos,bool bCliped)
         {
             IScrollCell cell = transform.GetComponent<IScrollCell>();
             if (cell != null)

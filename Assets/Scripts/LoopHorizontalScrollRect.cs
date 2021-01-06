@@ -33,7 +33,6 @@ namespace UnityEngine.UI
 
         protected override void Awake()
         {
-            base.Awake();
             directionSign = 1;
 
             GridLayoutGroup layout = content.GetComponent<GridLayoutGroup>();
@@ -42,7 +41,7 @@ namespace UnityEngine.UI
                 Debug.LogError("[LoopHorizontalScrollRect] unsupported GridLayoutGroup constraint");
             }
 
-            if(layout!=null)
+            if (layout != null)
             {
                 m_Padding = layout.padding.left + layout.padding.right;
             }
@@ -54,9 +53,10 @@ namespace UnityEngine.UI
                     m_Padding = layout1.padding.left + layout1.padding.right;
                 }
             }
+            base.Awake();
         }
 
-        protected override bool UpdateItems(Bounds viewBounds, Bounds contentBounds, bool bForwardAxis)
+        protected override bool UpdateItems(Bounds viewBounds, Bounds contentBounds)
         {
             bool changed = false;
 
@@ -122,73 +122,59 @@ namespace UnityEngine.UI
                 changed = true;
             }
 
-            bool bDeleted = false;//删除过的话，不需要判断增加了，删除会判断是否直接把删除的作为另一端增加
-            //Debug.Log(bForwardAxis + "============" + velocity.ToString());
-            //根据运动方向进行处理，可以把删除的移到另一端（DeleteItemAtEnd里面处理），并且避免触发另一端的删除
-            if (bForwardAxis)
+            if (viewBounds.max.x < contentBounds.max.x - threshold)
             {
-                if (viewBounds.max.x < contentBounds.max.x - threshold)
+                float size = DeleteItemAtEnd(), totalSize = size;
+                while (size > 0 && viewBounds.max.x < contentBounds.max.x - threshold - totalSize)
                 {
-                    float size = DeleteItemAtEnd(), totalSize = size;
-                    while (size > 0 && viewBounds.max.x < contentBounds.max.x - threshold - totalSize)
-                    {
-                        size = DeleteItemAtEnd();
-                        totalSize += size;
-                    }
-                    if (totalSize > 0)
-                    {
-                        changed = true;
-                        bDeleted = true;
-                    }
+                    size = DeleteItemAtEnd();
+                    totalSize += size;
                 }
-
-                if (!bDeleted && viewBounds.min.x < contentBounds.min.x)
-                {
-                    float size = NewItemAtStart(), totalSize = size;
-                    while (size > 0 && viewBounds.min.x < contentBounds.min.x - totalSize)
-                    {
-                        size = NewItemAtStart();
-                        totalSize += size;
-                    }
-                    if (totalSize > 0)
-                        changed = true;
-                }
+                if (totalSize > 0)
+                    changed = true;
             }
-            else
+
+            if (viewBounds.min.x > contentBounds.min.x + threshold)
             {
-                if (viewBounds.min.x > contentBounds.min.x + threshold)
+                float size = DeleteItemAtStart(), totalSize = size;
+                while (size > 0 && viewBounds.min.x > contentBounds.min.x + threshold + totalSize)
                 {
-                    float size = DeleteItemAtStart(), totalSize = size;
-                    while (size > 0 && viewBounds.min.x > contentBounds.min.x + threshold + totalSize)
-                    {
-                        size = DeleteItemAtStart();
-                        totalSize += size;
-                    }
-                    if (totalSize > 0)
-                    {
-                        changed = true;
-                        bDeleted = true;
-                    }
+                    size = DeleteItemAtStart();
+                    totalSize += size;
                 }
-
-                if (!bDeleted && viewBounds.max.x > contentBounds.max.x)
-                {
-                    float size = NewItemAtEnd(), totalSize = size;
-                    while (size > 0 && viewBounds.max.x > contentBounds.max.x + totalSize)
-                    {
-                        size = NewItemAtEnd();
-                        totalSize += size;
-                    }
-                    if (totalSize > 0)
-                        changed = true;
-                }
+                if (totalSize > 0)
+                    changed = true;
             }
-            
+
+            if (viewBounds.max.x > contentBounds.max.x)
+            {
+                float size = NewItemAtEnd(), totalSize = size;
+                while (size > 0 && viewBounds.max.x > contentBounds.max.x + totalSize)
+                {
+                    size = NewItemAtEnd();
+                    totalSize += size;
+                }
+                if (totalSize > 0)
+                    changed = true;
+            }
+
+            if (viewBounds.min.x < contentBounds.min.x)
+            {
+                float size = NewItemAtStart(), totalSize = size;
+                while (size > 0 && viewBounds.min.x < contentBounds.min.x - totalSize)
+                {
+                    size = NewItemAtStart();
+                    totalSize += size;
+                }
+                if (totalSize > 0)
+                    changed = true;
+            }
+
             if (changed)
             {
                 ClearTempPool();
             }
-            
+
             return changed;
         }
     }
