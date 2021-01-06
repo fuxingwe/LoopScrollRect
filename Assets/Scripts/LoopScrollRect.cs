@@ -18,7 +18,11 @@ namespace UnityEngine.UI
 
         [Tooltip("Total count, negative means INFINITE mode")]
         public int totalCount;
-        
+        		
+        protected float m_Padding = 0;
+        private int refillCellsFlag = 0;
+        private int m_PreCounts = 0;
+		
         [SerializeField, Tooltip("数据不足一页时自动居中")]
         bool autoCenter = false;
         /// <summary>
@@ -64,7 +68,7 @@ namespace UnityEngine.UI
             // wrapper for forward compatbility
             set
             {
-                if(value != null)
+                if (value != null)
                     dataSource = new LoopScrollArraySource<object>(value);
                 else
                     dataSource = LoopScrollSendIndexSource.Instance;
@@ -114,10 +118,6 @@ namespace UnityEngine.UI
                 return m_ContentSpacing;
             }
         }
-
-        protected float m_Padding = 0;
-
-        private int refillCellsFlag = 0;
 
         private bool m_ContentConstraintCountInit = false;
         private int m_ContentConstraintCount = 0;
@@ -317,7 +317,6 @@ namespace UnityEngine.UI
         private Vector2 m_PrevPosition = Vector2.zero;
         private Bounds m_PrevContentBounds;
         private Bounds m_PrevViewBounds;
-        private int m_PreCounts = 0;
         [NonSerialized]
         private bool m_HasRebuiltLayout = false;
 
@@ -367,7 +366,7 @@ namespace UnityEngine.UI
 
         public void SrollToCell(int index, float speed)
         {
-            if(totalCount >= 0 && (index < 0 || index >= totalCount))
+            if (totalCount >= 0 && (index < 0 || index >= totalCount))
             {
                 Debug.LogErrorFormat("invalid index {0}", index);
                 return;
@@ -384,17 +383,17 @@ namespace UnityEngine.UI
         IEnumerator ScrollToCellCoroutine(int index, float speed)
         {
             bool needMoving = true;
-            while(needMoving)
+            while (needMoving)
             {
                 yield return null;
-                if(!m_Dragging)
+                if (!m_Dragging)
                 {
                     float move = 0;
-                    if(index < itemTypeStart)
+                    if (index < itemTypeStart)
                     {
                         move = -Time.deltaTime * speed;
                     }
-                    else if(index >= itemTypeEnd)
+                    else if (index >= itemTypeEnd)
                     {
                         move = Time.deltaTime * speed;
                     }
@@ -434,12 +433,12 @@ namespace UnityEngine.UI
                         }
 
                         float maxMove = Time.deltaTime * speed;
-                        if(Mathf.Abs(offset) < maxMove)
+                        if (Mathf.Abs(offset) < maxMove)
                         {
                             needMoving = false;
                             move = offset;
-                         }
-                         else
+                        }
+                        else
                             move = Mathf.Sign(offset) * maxMove;
                     }
                     if (move != 0)
@@ -481,7 +480,7 @@ namespace UnityEngine.UI
         {
             if (!Application.isPlaying || prefabSource == null)
                 return;
-            
+
             StopMovement();
             RevertPadding();
             if (offset < 0)
@@ -508,15 +507,15 @@ namespace UnityEngine.UI
                 sizeToFill = viewRect.rect.size.y - m_Padding;
             else
                 sizeToFill = viewRect.rect.size.x - m_Padding;
-            
-            while(sizeToFill > sizeFilled)
+
+            while (sizeToFill > sizeFilled)
             {
                 float size = reverseDirection ? NewItemAtEnd() : NewItemAtStart();
-                if(size <= 0) 
+                if (size <= 0)
                     break;
                 sizeFilled += size;
             }
-            
+
             // refill from start in case not full yet
             while (sizeToFill > sizeFilled)
             {
@@ -547,88 +546,6 @@ namespace UnityEngine.UI
             }
         }
 
-        private void UpdateCellNormalizePos()
-        {
-            m_ViewBounds = new Bounds(viewRect.rect.center, viewRect.rect.size);
-
-            for (int i = itemTypeStart; i < itemTypeEnd; i++)
-            {
-                int childIdx = i - itemTypeStart;
-
-                if (childIdx >= 0 && childIdx < content.childCount)
-                {
-                    var itemBounds = GetBounds4Item(i);
-
-                    var normalizedPos = 0f;
-                    if (directionSign == -1)
-                    {
-                        float offset = reverseDirection ? (itemBounds.center.y - m_ViewBounds.min.y) : (m_ViewBounds.max.y - itemBounds.center.y);
-                        normalizedPos = Mathf.Clamp(offset / m_ViewBounds.size.y, 0f, 1f);
-                    }
-                    else if (directionSign == 1)
-                    {
-                        float offset = reverseDirection ? (m_ViewBounds.max.x - itemBounds.center.x) : (itemBounds.center.x - m_ViewBounds.min.x);
-                        normalizedPos = Mathf.Clamp(offset / m_ViewBounds.size.x, 0f, 1f);
-                    }
-                    dataSource.UpdateCellNormalizedPos(content.GetChild(childIdx), normalizedPos);
-                }
-            }
-        }
-
-        protected override void Awake()
-        {
-            if (autoCenter)
-            {//自动居中的话要先保存原始偏移
-                LayoutGroup layout = m_Content.GetComponent<LayoutGroup>();
-                if (layout != null)
-                {
-                    originalPadding = layout.padding;
-                }
-            }
-        }
-        
-        /// <summary>
-        /// 恢复Padding值，防止数据不足居中后，下次数据足了偏移不对
-        /// </summary>
-        private void RevertPadding()
-        {
-            if (autoCenter)
-            {
-                LayoutGroup layout = m_Content.GetComponent<LayoutGroup>();
-                if (layout != null)
-                {
-                    layout.padding=originalPadding;
-                }
-            }
-        }
-
-        /// <summary>
-        /// 数据不足一页时自动居中
-        /// </summary>
-        /// <param name="notFillSize"></param>
-        private void CheckAutoToCenter(float notFillSize)
-        {
-            if (autoCenter && notFillSize > 0 && originalPadding!=null)
-            {
-                LayoutGroup layout = m_Content.GetComponent<LayoutGroup>();
-                if (layout != null)
-                {
-                    int addValue = (int) notFillSize / 2;
-                    RectOffset rectOffset = new RectOffset(originalPadding.left, originalPadding.right, originalPadding.top, originalPadding.bottom);
-                    if (directionSign == 1)
-                    {
-                        rectOffset.left += addValue;
-                    }
-                    else
-                    {
-                        rectOffset.top += addValue;
-                    }
-
-                    layout.padding = rectOffset;
-                }
-            }
-        }
-        
         public void RefillCells(int offset = 0, bool fillViewRect = false)
         {
             if (!Application.isPlaying || prefabSource == null)
@@ -682,9 +599,7 @@ namespace UnityEngine.UI
                 {
                     float size = reverseDirection ? NewItemAtEnd() : NewItemAtStart();
                     if (size <= 0)
-                    {
                         break;
-                    }
                     sizeFilled += size;
                 }
             }
@@ -738,7 +653,7 @@ namespace UnityEngine.UI
                 m_PrevPosition += offset;
                 m_ContentStartPosition += offset;
             }
-            
+
             return size;
         }
 
@@ -762,6 +677,7 @@ namespace UnityEngine.UI
             {
                 return 0;
             }
+
             float size = 0;
             for (int i = 0; i < contentConstraintCount; i++)
             {
@@ -820,7 +736,7 @@ namespace UnityEngine.UI
                 m_PrevPosition -= offset;
                 m_ContentStartPosition -= offset;
             }
-            
+
             return size;
         }
 
@@ -832,7 +748,7 @@ namespace UnityEngine.UI
             {
                 return 0;
             }
-			int availableChilds = content.childCount - deletedItemTypeStart - deletedItemTypeEnd;
+            int availableChilds = content.childCount - deletedItemTypeStart - deletedItemTypeEnd;
             Debug.Assert(availableChilds >= 0);
             if (availableChilds == 0)
             {
@@ -912,6 +828,7 @@ namespace UnityEngine.UI
             }
         }
         //==========LoopScrollRect==========
+
         public virtual void Rebuild(CanvasUpdate executing)
         {
             if (executing == CanvasUpdate.Prelayout)
@@ -1121,14 +1038,6 @@ namespace UnityEngine.UI
                 UpdateBounds(true, bForwardAxis);
             }
         }
-
-        protected virtual void Update()
-        {
-            if (autoLoopScroll.enable)
-            {
-                ProcessAutoLoopScroll();
-            }
-        }
         protected virtual void LateUpdate()
         {
             if (!m_Content)
@@ -1271,12 +1180,12 @@ namespace UnityEngine.UI
             {
                 UpdateBounds();
                 //==========LoopScrollRect==========
-                if(totalCount > 0 && itemTypeEnd > itemTypeStart)
+                if (totalCount > 0 && itemTypeEnd > itemTypeStart)
                 {
                     float elementSize = (m_ContentBounds.size.x - contentSpacing * (CurrentLines - 1)) / CurrentLines;
                     float totalSize = elementSize * TotalLines + contentSpacing * (TotalLines - 1);
                     float offset = m_ContentBounds.min.x - elementSize * StartLine - contentSpacing * StartLine;
-                    
+
                     if (totalSize <= m_ViewBounds.size.x)
                         return (m_ViewBounds.min.x > offset) ? 1 : 0;
                     return (m_ViewBounds.min.x - offset) / (totalSize - m_ViewBounds.size.x);
@@ -1297,12 +1206,12 @@ namespace UnityEngine.UI
             {
                 UpdateBounds();
                 //==========LoopScrollRect==========
-                if(totalCount > 0 && itemTypeEnd > itemTypeStart)
+                if (totalCount > 0 && itemTypeEnd > itemTypeStart)
                 {
                     float elementSize = (m_ContentBounds.size.y - contentSpacing * (CurrentLines - 1)) / CurrentLines;
                     float totalSize = elementSize * TotalLines + contentSpacing * (TotalLines - 1);
                     float offset = m_ContentBounds.max.y + elementSize * StartLine + contentSpacing * StartLine;
-                    
+
                     if (totalSize <= m_ViewBounds.size.y)
                         return (offset > m_ViewBounds.max.y) ? 1 : 0;
                     return (offset - m_ViewBounds.max.y) / (totalSize - m_ViewBounds.size.y);
@@ -1316,7 +1225,7 @@ namespace UnityEngine.UI
                 SetNormalizedPosition(value, 1);
             }
         }
-        
+
         private void SetHorizontalNormalizedPosition(float value) { SetNormalizedPosition(value, 0); }
         private void SetVerticalNormalizedPosition(float value) { SetNormalizedPosition(value, 1); }
 
@@ -1341,7 +1250,7 @@ namespace UnityEngine.UI
 
                 newLocalPosition += m_ViewBounds.min.x - value * (totalSize - m_ViewBounds.size[axis]) - offset;
             }
-            else if(axis == 1)
+            else if (axis == 1)
             {
                 float elementSize = (m_ContentBounds.size.y - contentSpacing * (CurrentLines - 1)) / CurrentLines;
                 float totalSize = elementSize * TotalLines + contentSpacing * (TotalLines - 1);
@@ -1663,6 +1572,97 @@ namespace UnityEngine.UI
             SetDirtyCaching();
         }
 #endif
+
+        protected virtual void Update()
+        {
+            if (autoLoopScroll.enable)
+            {
+                ProcessAutoLoopScroll();
+            }
+        }
+		
+        private void UpdateCellNormalizePos()
+        {
+            m_ViewBounds = new Bounds(viewRect.rect.center, viewRect.rect.size);
+
+            for (int i = itemTypeStart; i < itemTypeEnd; i++)
+            {
+                int childIdx = i - itemTypeStart;
+
+                if (childIdx >= 0 && childIdx < content.childCount)
+                {
+                    var itemBounds = GetBounds4Item(i);
+
+                    var normalizedPos = 0f;
+                    if (directionSign == -1)
+                    {
+                        float offset = reverseDirection ? (itemBounds.center.y - m_ViewBounds.min.y) : (m_ViewBounds.max.y - itemBounds.center.y);
+                        normalizedPos = Mathf.Clamp(offset / m_ViewBounds.size.y, 0f, 1f);
+                    }
+                    else if (directionSign == 1)
+                    {
+                        float offset = reverseDirection ? (m_ViewBounds.max.x - itemBounds.center.x) : (itemBounds.center.x - m_ViewBounds.min.x);
+                        normalizedPos = Mathf.Clamp(offset / m_ViewBounds.size.x, 0f, 1f);
+                    }
+                    dataSource.UpdateCellNormalizedPos(content.GetChild(childIdx), normalizedPos);
+                }
+            }
+        }
+
+        protected override void Awake()
+        {
+            if (autoCenter)
+            {//自动居中的话要先保存原始偏移
+                LayoutGroup layout = m_Content.GetComponent<LayoutGroup>();
+                if (layout != null)
+                {
+                    originalPadding = layout.padding;
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 恢复Padding值，防止数据不足居中后，下次数据足了偏移不对
+        /// </summary>
+        private void RevertPadding()
+        {
+            if (autoCenter)
+            {
+                LayoutGroup layout = m_Content.GetComponent<LayoutGroup>();
+                if (layout != null)
+                {
+                    layout.padding=originalPadding;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 数据不足一页时自动居中
+        /// </summary>
+        /// <param name="notFillSize"></param>
+        private void CheckAutoToCenter(float notFillSize)
+        {
+            if (autoCenter && notFillSize > 0 && originalPadding!=null)
+            {
+                LayoutGroup layout = m_Content.GetComponent<LayoutGroup>();
+                if (layout != null)
+                {
+                    int addValue = (int) notFillSize / 2;
+                    RectOffset rectOffset = new RectOffset(originalPadding.left, originalPadding.right, originalPadding.top, originalPadding.bottom);
+                    if (directionSign == 1)
+                    {
+                        rectOffset.left += addValue;
+                    }
+                    else
+                    {
+                        rectOffset.top += addValue;
+                    }
+
+                    layout.padding = rectOffset;
+                }
+            }
+        }
+        
         /// <summary>
         /// 自动循环轮播滚动
         /// </summary>
