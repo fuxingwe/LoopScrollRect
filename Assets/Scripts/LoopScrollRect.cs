@@ -1,8 +1,9 @@
-﻿using UnityEngine;
+﻿﻿using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 
 namespace UnityEngine.UI
 {
@@ -371,7 +372,8 @@ namespace UnityEngine.UI
                 Debug.LogErrorFormat("invalid index {0}", index);
                 return;
             }
-            if(speed <= 0)
+            StopAllCoroutines();
+            if (speed <= 0)
             {
                 RefillCells(index);
                 return;
@@ -412,8 +414,8 @@ namespace UnityEngine.UI
                             {
                                 m_ItemBounds = GetBounds4Item(totalCount - 1);
                                 // reach bottom
-                                if ((directionSign == -1 && m_ItemBounds.min.y >= m_ViewBounds.min.y) ||
-                                    (directionSign == 1 && m_ItemBounds.max.x <= m_ViewBounds.max.x))
+                                if ((directionSign == -1 && m_ItemBounds.min.y > m_ViewBounds.min.y) ||
+                                    (directionSign == 1 && m_ItemBounds.max.x < m_ViewBounds.max.x))
                                 {
                                     needMoving = false;
                                     break;
@@ -422,8 +424,8 @@ namespace UnityEngine.UI
                             else if (offset < 0 && itemTypeStart == 0 && reverseDirection)
                             {
                                 m_ItemBounds = GetBounds4Item(0);
-                                if ((directionSign == -1 && m_ItemBounds.max.y <= m_ViewBounds.max.y) ||
-                                    (directionSign == 1 && m_ItemBounds.min.x >= m_ViewBounds.min.x))
+                                if ((directionSign == -1 && m_ItemBounds.max.y < m_ViewBounds.max.y) ||
+                                    (directionSign == 1 && m_ItemBounds.min.x > m_ViewBounds.min.x))
                                 {
                                     needMoving = false;
                                     break;
@@ -443,12 +445,9 @@ namespace UnityEngine.UI
                     if (move != 0)
                     {
                         Vector2 offset = GetVector(move);
-                        Vector2 position = m_Content.anchoredPosition;
-                        position += offset;
-                        //if (m_MovementType == MovementType.Clamped)
-                        //    position += CalculateOffset(position - m_Content.anchoredPosition);
-                        SetContentAnchoredPosition(position);
-                        UpdateBounds();
+                        content.anchoredPosition += offset;
+                        m_PrevPosition += offset;
+                        m_ContentStartPosition += offset;
                     }
                 }
             }
@@ -502,10 +501,7 @@ namespace UnityEngine.UI
                 itemTypeStart = (itemTypeStart / contentConstraintCount) * contentConstraintCount;
             }
 
-            for (int i = m_Content.childCount - 1; i >= 0; i--)
-            {
-                prefabSource.CacheObject(m_Content.GetChild(i));
-            }
+            ReturnToTempPool(!reverseDirection, m_Content.childCount);
 
             float sizeToFill = 0, sizeFilled = 0;
             if (directionSign == -1)
@@ -529,8 +525,7 @@ namespace UnityEngine.UI
                     break;
                 sizeFilled += size;
             }
-            
-            prefabSource.ClearCache();
+
             Vector2 pos = m_Content.anchoredPosition;
             float dist = alignStart ? 0 : Mathf.Max(0, sizeFilled - sizeToFill - contentSpacing);
             if (reverseDirection)
@@ -542,6 +537,8 @@ namespace UnityEngine.UI
             refillCellsFlag = 1;
             m_Content.anchoredPosition = pos;
             m_ContentStartPosition = pos;
+
+            ClearTempPool();
             UpdateScrollbars(Vector2.zero);
             CheckAutoToCenter(sizeToFill - sizeFilled);
             if (GenerateNormalizePosChangedEvent)
@@ -632,7 +629,7 @@ namespace UnityEngine.UI
             }
         }
         
-        public void RefillCells(int offset = 0)
+        public void RefillCells(int offset = 0, bool fillViewRect = false)
         {
             if (!Application.isPlaying || prefabSource == null)
                 return;
@@ -658,10 +655,7 @@ namespace UnityEngine.UI
             }
 
             // Don't `Canvas.ForceUpdateCanvases();` here, or it will new/delete cells to change itemTypeStart/End
-            for (int i = m_Content.childCount - 1; i >= 0; i--)
-            {
-                prefabSource.CacheObject(m_Content.GetChild(i));
-            }
+            ReturnToTempPool(reverseDirection, m_Content.childCount);
 
             float sizeToFill = 0, sizeFilled = 0;
             // m_ViewBounds may be not ready when RefillCells on Start
@@ -695,7 +689,6 @@ namespace UnityEngine.UI
                 }
             }
 
-            prefabSource.ClearCache();
             //Move the extra size to align the end
             if (bFillFromStart || ((offset == totalCount - 1 && sizeToFill <= sizeFilled)))
             {
@@ -710,6 +703,7 @@ namespace UnityEngine.UI
                 refillCellsFlag = 1;
                 m_Content.anchoredPosition = pos;
                 m_ContentStartPosition = pos;
+                ClearTempPool();
                 UpdateScrollbars(Vector2.zero);
             }
             CheckAutoToCenter(sizeToFill - sizeFilled);
@@ -731,8 +725,8 @@ namespace UnityEngine.UI
             for (int i = 0; i < contentConstraintCount; i++)
             {
                 itemTypeStart--;
-                RectTransform newItem = InstantiateNextItem(itemTypeStart);
-                newItem.SetAsFirstSibling();
+                RectTransform newItem = GetFromTempPool(itemTypeStart);
+                newItem.SetSiblingIndex(deletedItemTypeStart);
                 size = Mathf.Max(GetSize(newItem), size);
             }
             threshold = Mathf.Max(threshold, size);
@@ -762,17 +756,22 @@ namespace UnityEngine.UI
             {
                 return 0;
             }
-
+            int availableChilds = content.childCount - deletedItemTypeStart - deletedItemTypeEnd;
+            Debug.Assert(availableChilds >= 0);
+            if (availableChilds == 0)
+            {
+                return 0;
+            }
             float size = 0;
             for (int i = 0; i < contentConstraintCount; i++)
             {
-                RectTransform oldItem = content.GetChild(i) as RectTransform;
+                RectTransform oldItem = content.GetChild(deletedItemTypeStart) as RectTransform;
                 size = Mathf.Max(GetSize(oldItem), size);
-                prefabSource.CacheObject(oldItem);
-
+                ReturnToTempPool(true);
+                availableChilds--;
                 itemTypeStart++;
 
-                if (GetContentCountWithoutCache() == 0)
+                if (availableChilds == 0)
                 {
                     break;
                 }
@@ -787,25 +786,24 @@ namespace UnityEngine.UI
             }
             if (size > 0)
                 NewItemAtEnd();
-            prefabSource.ClearCache();
             return size;
         }
 
 
         protected float NewItemAtEnd()
         {
-            //Debug.Log("===NewItemAtEnd===" + Time.frameCount+"  "+ itemTypeEnd+"  "+ totalCount);
             if (totalCount >= 0 && itemTypeEnd >= totalCount)
             {
                 return 0;
             }
             float size = 0;
             // issue 4: fill lines to end first
-            int count = contentConstraintCount - (GetContentCountWithoutCache() % contentConstraintCount);
+            int availableChilds = content.childCount - deletedItemTypeStart - deletedItemTypeEnd;
+            int count = contentConstraintCount - (availableChilds % contentConstraintCount);
             for (int i = 0; i < count; i++)
             {
-                RectTransform newItem = InstantiateNextItem(itemTypeEnd);
-                newItem.SetAsLastSibling();
+                RectTransform newItem = GetFromTempPool(itemTypeEnd);
+                newItem.SetSiblingIndex(content.childCount - deletedItemTypeEnd - 1);
                 size = Mathf.Max(GetSize(newItem), size);
                 itemTypeEnd++;
                 if (totalCount >= 0 && itemTypeEnd >= totalCount)
@@ -834,16 +832,22 @@ namespace UnityEngine.UI
             {
                 return 0;
             }
+			int availableChilds = content.childCount - deletedItemTypeStart - deletedItemTypeEnd;
+            Debug.Assert(availableChilds >= 0);
+            if (availableChilds == 0)
+            {
+                return 0;
+            }
 
             float size = 0;
             for (int i = 0; i < contentConstraintCount; i++)
             {
-                RectTransform oldItem = content.GetChild(content.childCount -i- 1) as RectTransform;
+                RectTransform oldItem = content.GetChild(content.childCount - deletedItemTypeEnd - 1) as RectTransform;
                 size = Mathf.Max(GetSize(oldItem), size);
-                prefabSource.CacheObject(oldItem);
-
+                ReturnToTempPool(false);
+                availableChilds--;
                 itemTypeEnd--;
-                if (itemTypeEnd % contentConstraintCount == 0 || GetContentCountWithoutCache() == 0)
+                if (itemTypeEnd % contentConstraintCount == 0 || availableChilds == 0)
                 {
                     break;  //just delete the whole row
                 }
@@ -858,17 +862,54 @@ namespace UnityEngine.UI
             }
             if(size>0)
                 NewItemAtStart();
-            prefabSource.ClearCache();
             return size;
         }
 
-        private RectTransform InstantiateNextItem(int itemIdx)
-        {            
-            RectTransform nextItem = prefabSource.GetObject(content).transform as RectTransform;
-            //nextItem.transform.SetParent(content, false);
-            //nextItem.gameObject.SetActive(true);
+        int deletedItemTypeStart = 0;
+        int deletedItemTypeEnd = 0;
+        protected RectTransform GetFromTempPool(int itemIdx)
+        {
+            RectTransform nextItem = null;
+            if (deletedItemTypeStart > 0)
+            {
+                deletedItemTypeStart--;
+                nextItem = content.GetChild(0) as RectTransform;
+                nextItem.SetSiblingIndex(itemIdx - itemTypeStart + deletedItemTypeStart);
+            }
+            else if (deletedItemTypeEnd > 0)
+            {
+                deletedItemTypeEnd--;
+                nextItem = content.GetChild(content.childCount - 1) as RectTransform;
+                nextItem.SetSiblingIndex(itemIdx - itemTypeStart + deletedItemTypeStart);
+            }
+            else
+            {
+                nextItem = prefabSource.GetObject().transform as RectTransform;
+                nextItem.transform.SetParent(content, false);
+                nextItem.gameObject.SetActive(true);
+            }
             dataSource.ProvideData(nextItem, itemIdx,bLooped);
             return nextItem;
+        }
+        protected void ReturnToTempPool(bool fromStart, int count = 1)
+        {
+            if (fromStart)
+                deletedItemTypeStart += count;
+            else
+                deletedItemTypeEnd += count;
+        }
+        protected void ClearTempPool()
+        {
+            while (deletedItemTypeStart > 0)
+            {
+                deletedItemTypeStart--;
+                prefabSource.ReturnObject(content.GetChild(0));
+            }
+            while (deletedItemTypeEnd > 0)
+            {
+                deletedItemTypeEnd--;
+                prefabSource.ReturnObject(content.GetChild(content.childCount - 1));
+            }
         }
         //==========LoopScrollRect==========
         public virtual void Rebuild(CanvasUpdate executing)
@@ -1065,7 +1106,7 @@ namespace UnityEngine.UI
             if (!m_Vertical)
                 position.y = m_Content.anchoredPosition.y;
 
-            if (position != m_Content.anchoredPosition)
+            if ((position - m_Content.anchoredPosition).sqrMagnitude > 0.001f)
             {
                 bool bForwardAxis = false;
                 if (directionSign == 1)
@@ -1105,7 +1146,6 @@ namespace UnityEngine.UI
             //AlmostZero 解决拖拽滑动停下来后还一直在微微刷新的问题
             if (!m_Dragging && (!offset.AlmostZero() || !m_Velocity.AlmostZero()))
             {
-                // Debug.Log(Time.frameCount + " " + offset.AlmostZero() + "   " + offset + "   " + m_Velocity.AlmostZero() + "  " + m_Velocity);
                 Vector2 position = m_Content.anchoredPosition;
                 for (int axis = 0; axis < 2; axis++)
                 {

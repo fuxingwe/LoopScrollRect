@@ -60,6 +60,67 @@ namespace UnityEngine.UI
         protected override bool UpdateItems(Bounds viewBounds, Bounds contentBounds, bool bForwardAxis)
         {
             bool changed = false;
+            
+            // special case: handling move several page in one frame
+            if (viewBounds.max.y < contentBounds.min.y && itemTypeEnd > itemTypeStart)
+            {
+                int maxItemTypeStart = -1;
+                if (totalCount >= 0)
+                {
+                    maxItemTypeStart = Mathf.Max(0, totalCount - (itemTypeEnd - itemTypeStart));
+                }
+                float currentSize = contentBounds.size.y;
+                float elementSize = (currentSize - contentSpacing * (CurrentLines - 1)) / CurrentLines;
+                ReturnToTempPool(true, itemTypeEnd - itemTypeStart);
+                itemTypeStart = itemTypeEnd;
+
+                int offsetCount = Mathf.FloorToInt((contentBounds.min.y - viewBounds.max.y) / (elementSize + contentSpacing));
+                if (maxItemTypeStart >= 0 && itemTypeStart + offsetCount * contentConstraintCount > maxItemTypeStart)
+                {
+                    offsetCount = Mathf.FloorToInt((float)(maxItemTypeStart - itemTypeStart) / contentConstraintCount);
+                }
+                itemTypeStart += offsetCount * contentConstraintCount;
+                if (totalCount >= 0)
+                {
+                    itemTypeStart = Mathf.Max(itemTypeStart, 0);
+                }
+                itemTypeEnd = itemTypeStart;
+
+                float offset = offsetCount * (elementSize + contentSpacing);
+                content.anchoredPosition -= new Vector2(0, offset + (reverseDirection ? 0 : currentSize));
+                contentBounds.center -= new Vector3(0, offset + currentSize / 2, 0);
+                contentBounds.size = Vector3.zero;
+
+                changed = true;
+            }
+
+            if (viewBounds.min.y > contentBounds.max.y && itemTypeEnd > itemTypeStart)
+            {
+                float currentSize = contentBounds.size.y;
+                float elementSize = (currentSize - contentSpacing * (CurrentLines - 1)) / CurrentLines;
+                ReturnToTempPool(false, itemTypeEnd - itemTypeStart);
+                itemTypeEnd = itemTypeStart;
+
+                int offsetCount = Mathf.FloorToInt((viewBounds.min.y - contentBounds.max.y) / (elementSize + contentSpacing));
+                if (totalCount >= 0 && itemTypeStart - offsetCount * contentConstraintCount < 0)
+                {
+                    offsetCount = Mathf.FloorToInt((float)(itemTypeStart) / contentConstraintCount);
+                }
+                itemTypeStart -= offsetCount * contentConstraintCount;
+                if (totalCount >= 0)
+                {
+                    itemTypeStart = Mathf.Max(itemTypeStart, 0);
+                }
+                itemTypeEnd = itemTypeStart;
+
+                float offset = offsetCount * (elementSize + contentSpacing);
+                content.anchoredPosition += new Vector2(0, offset + (reverseDirection ? currentSize : 0));
+                contentBounds.center += new Vector3(0, offset + currentSize / 2, 0);
+                contentBounds.size = Vector3.zero;
+
+                changed = true;
+            }
+
             bool bDeleted = false;//删除过的话，不需要判断增加了，删除会判断是否直接把删除的作为另一端增加
             //Debug.Log(bForwardAxis + "============" + velocity.ToString());
             //根据运动方向进行处理，可以把删除的移到另一端（DeleteItemAtEnd里面处理），并且避免触发另一端的删除
@@ -121,7 +182,12 @@ namespace UnityEngine.UI
                         changed = true;
                 }
             }
-
+            
+            if (changed)
+            {
+                ClearTempPool();
+            }
+            
             return changed;
         }
     }

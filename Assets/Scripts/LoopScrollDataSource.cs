@@ -43,9 +43,9 @@ namespace UnityEngine.UI
             this.objectsToFill = objectsToFill;
         }
 
-        public override void ProvideData(Transform transform, int idx ,bool bCircled)
+        public override void ProvideData(Transform transform, int idx ,bool bLooped)
         {
-            if (bCircled && objectsToFill != null && objectsToFill.Length > 0 && idx > objectsToFill.Length)
+            if (bLooped && objectsToFill != null && objectsToFill.Length > 0 && idx > objectsToFill.Length)
                 idx = idx % objectsToFill.Length;
             transform.SendMessage("ScrollCellContent", objectsToFill[idx]);
         }

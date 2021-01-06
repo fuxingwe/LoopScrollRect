@@ -13,7 +13,7 @@ namespace UnityEngine.UI
         private bool inited = false;
         //同一帧缓存，回收再拿出来用，不需要改变父对象和设置显隐
         private Queue<GameObject> frameCacheStack = new Queue<GameObject>();
-        public virtual GameObject GetObject(Transform content)
+        public virtual GameObject GetObject()
         {
             if (frameCacheStack.Count > 0)
             {
@@ -27,7 +27,7 @@ namespace UnityEngine.UI
             }
             GameObject go = SG.ResourceManager.Instance.GetObjectFromPool(prefabName);
             //Debug.Log(go.GetInstanceID() + "---GetObject---" + frameCacheStack.Count.ToString());
-            go.transform.SetParent(content, false);
+            // go.transform.SetParent(content, false);
             //go.SetActive(true);
             return go;
         }
