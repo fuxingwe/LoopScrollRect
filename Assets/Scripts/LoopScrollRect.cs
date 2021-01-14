@@ -16,9 +16,9 @@ namespace UnityEngine.UI
         [Tooltip("Prefab Source")]
         public LoopScrollPrefabSource prefabSource;
 
-        [Tooltip("Total count, negative means INFINITE mode")]
-        public int totalCount;
-        		
+        public int totalCount { get; protected set; }
+
+        private bool ignoreUpdate = false;
         protected float m_Padding = 0;
         private int refillCellsFlag = 0;
         private int m_PreCounts = 0;
@@ -63,6 +63,9 @@ namespace UnityEngine.UI
 
         [SerializeField, Tooltip("是否生成标准化坐标变化事件，用于检测Item是否被Mask裁剪/检测Item位置变化实现滚动时的Item动画")]
         public bool GenerateNormalizePosChangedEvent = false;
+        
+        private Action<bool> OnReachBorder = null;
+        
         
         [HideInInspector]
         [NonSerialized]
@@ -458,6 +461,9 @@ namespace UnityEngine.UI
             UpdatePrevData();
         }
 
+        /// <summary>
+        /// 刷新当前可见的Cells，不跳转
+        /// </summary>
         public void RefreshCells()
         {
             if (Application.isPlaying && this.isActiveAndEnabled)
@@ -531,7 +537,7 @@ namespace UnityEngine.UI
                     break;
                 sizeFilled += size;
             }
-
+            ClearTempPool();
             Vector2 pos = m_Content.anchoredPosition;
             float dist = alignStart ? 0 : Mathf.Max(0, sizeFilled - sizeToFill - contentSpacing);
             if (reverseDirection)
@@ -544,7 +550,6 @@ namespace UnityEngine.UI
             m_Content.anchoredPosition = pos;
             m_ContentStartPosition = pos;
 
-            ClearTempPool();
             UpdateScrollbars(Vector2.zero);
             CheckAutoToCenter(sizeToFill - sizeFilled);
             if (GenerateNormalizePosChangedEvent)
@@ -618,17 +623,24 @@ namespace UnityEngine.UI
                 if (newOffset < 0) newOffset = 0;
                 if (newOffset != offset) RefillCells(newOffset);                 //refill again, with the new offset value, and now with fillViewRect disabled.
             }
-
+            ClearTempPool();
+            float dist = 0;
             Vector2 pos = m_Content.anchoredPosition;
+            //Move the extra size to align the end(Fix bug when RefillCells to the bottom,sometimes stop with a litter extra size)
+            if (offset == totalCount - 1 && sizeToFill <= m_Content.rect.height)
+            {
+                dist = Mathf.Max(0, m_Content.rect.height - sizeToFill - contentSpacing);
+            }
+
+            if (reverseDirection)
+                dist = -dist;
             if (directionSign == -1)
-                pos.y = 0;
+                pos.y = dist;
             else if (directionSign == 1)
-                pos.x = 0;
+                pos.x = -dist;
             refillCellsFlag = 1;
             m_Content.anchoredPosition = pos;
             m_ContentStartPosition = pos;
-
-            ClearTempPool();
             UpdateScrollbars(Vector2.zero);
             CheckAutoToCenter(sizeToFill - sizeFilled);
             if (GenerateNormalizePosChangedEvent)
@@ -1032,7 +1044,7 @@ namespace UnityEngine.UI
 
         protected virtual void LateUpdate()
         {
-            if (!m_Content)
+            if (!m_Content || ignoreUpdate)
                 return;
             //Ignore the frame with RefillCells
             if (refillCellsFlag > 0)
@@ -1043,18 +1055,18 @@ namespace UnityEngine.UI
             EnsureLayoutHasRebuilt();
             UpdateScrollbarVisibility();
             UpdateBounds();
-            if (autoScrollToCenter.enable && !m_Dragging)
+            float deltaTime = Time.unscaledDeltaTime;
+            Vector2 offset = CalculateOffset(Vector2.zero);
+            //有offset表示拖出了两边边界，此时走弹性规则，不计算吸附
+            if (autoScrollToCenter.enable && !m_Dragging&&offset.magnitude<0.0001)
             {//非拖拽情况速率小到一定值之后立即停下进行吸附运算
                 float velocity = m_Velocity.magnitude;
-                if(velocity>0 && velocity<autoScrollToCenter.triggerSpeed)
+                if(velocity>0.01f && velocity<autoScrollToCenter.triggerSpeed)
                 {
                     StopMovement();
                     ScrollToCenter();
                 }
             }
-            
-            float deltaTime = Time.unscaledDeltaTime;
-            Vector2 offset = CalculateOffset(Vector2.zero);
             //AlmostZero 解决滑动停下来后还一直在微微刷新的问题
             if (!m_Dragging && (!offset.AlmostZero() || !m_Velocity.AlmostZero()))
             {
@@ -1105,6 +1117,7 @@ namespace UnityEngine.UI
             {
                 UpdateScrollbars(offset);
                 m_OnValueChanged.Invoke(normalizedPosition);
+                Debug.Log( "============"+normalizedPosition+"   "+offset);
                 if (GenerateNormalizePosChangedEvent)
                 {
                     UpdateCellNormalizePos();
@@ -1723,6 +1736,7 @@ namespace UnityEngine.UI
         /// <returns></returns>
         IEnumerator ScrollToCenterCoroutine()
         {
+            ignoreUpdate = true;
             int centerIndex = FindClosestIndexToCenter(autoScrollToCenter.centerOffset);
             bool needMoving = true;
             while (needMoving)
@@ -1800,6 +1814,7 @@ namespace UnityEngine.UI
             }
             StopMovement();
             UpdatePrevData();
+            ignoreUpdate = false;
         }
         
         /// <summary>
