@@ -458,6 +458,9 @@ namespace UnityEngine.UI
             UpdatePrevData();
         }
 
+        /// <summary>
+        /// 刷新当前可见的Cells，不跳转
+        /// </summary>
         public void RefreshCells()
         {
             if (Application.isPlaying && this.isActiveAndEnabled)
@@ -531,7 +534,7 @@ namespace UnityEngine.UI
                     break;
                 sizeFilled += size;
             }
-
+            ClearTempPool();
             Vector2 pos = m_Content.anchoredPosition;
             float dist = alignStart ? 0 : Mathf.Max(0, sizeFilled - sizeToFill - contentSpacing);
             if (reverseDirection)
@@ -544,7 +547,6 @@ namespace UnityEngine.UI
             m_Content.anchoredPosition = pos;
             m_ContentStartPosition = pos;
 
-            ClearTempPool();
             UpdateScrollbars(Vector2.zero);
             CheckAutoToCenter(sizeToFill - sizeFilled);
             if (GenerateNormalizePosChangedEvent)
@@ -618,17 +620,22 @@ namespace UnityEngine.UI
                 if (newOffset < 0) newOffset = 0;
                 if (newOffset != offset) RefillCells(newOffset);                 //refill again, with the new offset value, and now with fillViewRect disabled.
             }
-
-            Vector2 pos = m_Content.anchoredPosition;
-            if (directionSign == -1)
-                pos.y = 0;
-            else if (directionSign == 1)
-                pos.x = 0;
-            refillCellsFlag = 1;
-            m_Content.anchoredPosition = pos;
-            m_ContentStartPosition = pos;
-
             ClearTempPool();
+            //Move the extra size to align the end(Fix bug when RefillCells to the bottom,sometimes stop with a litter extra size)
+            if (offset == totalCount - 1 && sizeToFill <= m_Content.rect.height)
+            {
+                Vector2 pos = m_Content.anchoredPosition;
+                float dist = Mathf.Max(0, m_Content.rect.height - sizeToFill - contentSpacing);
+                if (reverseDirection)
+                    dist = -dist;
+                if (directionSign == -1)
+                    pos.y = dist;
+                else if (directionSign == 1)
+                    pos.x = -dist;
+                refillCellsFlag = 1;
+                m_Content.anchoredPosition = pos;
+                m_ContentStartPosition = pos;
+            }
             UpdateScrollbars(Vector2.zero);
             CheckAutoToCenter(sizeToFill - sizeFilled);
             if (GenerateNormalizePosChangedEvent)
